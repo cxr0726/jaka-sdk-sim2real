@@ -1,0 +1,398 @@
+{
+  "renderer_mujoco_version": "3.16.0",
+  "method": "Actual compiled collision geoms + mjVIS_CONVEXHULL; kinematics only, no mj_step; orthographic common cameras.",
+  "sdk": {
+    "path": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/Khan_mini_contact.xml",
+    "sha256": "6ac34aa81b73eeb89f10d52963f7b90324a5346b5ac67d8565708f9efa859f1b",
+    "collision_geom_count_excluding_world": 33,
+    "collision_types": {
+      "mesh": 33
+    },
+    "collision_geoms": [
+      {
+        "body": "base_link",
+        "geom": "1",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_hip_pitch_Link",
+        "geom": "2",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_hip_roll_Link",
+        "geom": "3",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_hip_yaw_Link",
+        "geom": "4",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_knee_Link",
+        "geom": "Left_knee_main_contact",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_knee_Link",
+        "geom": "Left_knee_ankle_joint_contact",
+        "type": "mesh",
+        "contype": 8,
+        "conaffinity": 29
+      },
+      {
+        "body": "Left_ankle_pitch_Link",
+        "geom": "8",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_ankle_roll_Link",
+        "geom": "9",
+        "type": "mesh",
+        "contype": 2,
+        "conaffinity": 23
+      },
+      {
+        "body": "Right_hip_pitch_Link",
+        "geom": "19",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_hip_roll_Link",
+        "geom": "20",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_hip_yaw_Link",
+        "geom": "21",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_knee_Link",
+        "geom": "Right_knee_main_contact",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_knee_Link",
+        "geom": "Right_knee_ankle_joint_contact",
+        "type": "mesh",
+        "contype": 16,
+        "conaffinity": 27
+      },
+      {
+        "body": "Right_ankle_pitch_Link",
+        "geom": "25",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_ankle_roll_Link",
+        "geom": "26",
+        "type": "mesh",
+        "contype": 4,
+        "conaffinity": 15
+      },
+      {
+        "body": "waist_yaw_Link",
+        "geom": "36",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "waist_yaw_Link",
+        "geom": "37",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "waist_yaw_Link",
+        "geom": "38",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_shoulder_pitch_Link",
+        "geom": "39",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_shoulder_roll_Link",
+        "geom": "40",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_shoulder_yaw_Link",
+        "geom": "41",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_elbow_Link",
+        "geom": "42",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_wrist_roll_Link",
+        "geom": "43",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Left_wrist_yaw_Link",
+        "geom": "44",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_shoulder_pitch_Link",
+        "geom": "45",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_shoulder_roll_Link",
+        "geom": "46",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_shoulder_yaw_Link",
+        "geom": "47",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_elbow_Link",
+        "geom": "48",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_wrist_roll_Link",
+        "geom": "49",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Right_wrist_yaw__Link",
+        "geom": "50",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Neck_yaw_Link",
+        "geom": "51",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Neck_pitch_Link",
+        "geom": "52",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      },
+      {
+        "body": "Neck_pitch_Link",
+        "geom": "53",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 31
+      }
+    ]
+  },
+  "training": {
+    "path": "/home/cxr0726/workspace/jaka_supermimic/SuperMimic-Reproduced-jaka/assets/robots/khan_mini/robot.xml",
+    "sha256": "a25f2da6aa75dbf9b298a7cf32b7c22e71c8076861fc9eed92cd0b964af0871a",
+    "collision_geom_count_excluding_world": 14,
+    "collision_types": {
+      "box": 2,
+      "capsule": 4,
+      "mesh": 8
+    },
+    "collision_geoms": [
+      {
+        "body": "base_link",
+        "geom": "base_link_1_collision",
+        "type": "box",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_knee_Link",
+        "geom": "Left_knee_Link_6_collision",
+        "type": "capsule",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_ankle_roll_Link",
+        "geom": "Left_ankle_roll_Link_convex_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_knee_Link",
+        "geom": "Right_knee_Link_27_collision",
+        "type": "capsule",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_ankle_roll_Link",
+        "geom": "Right_ankle_roll_Link_convex_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "waist_yaw_Link",
+        "geom": "waist_yaw_Link_45_collision",
+        "type": "box",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_shoulder_yaw_Link",
+        "geom": "Left_shoulder_yaw_Link_51_collision",
+        "type": "capsule",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_elbow_Link",
+        "geom": "Left_elbow_Link_53_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_wrist_roll_Link",
+        "geom": "Left_wrist_roll_Link_55_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Left_wrist_yaw_Link",
+        "geom": "Left_wrist_yaw_Link_57_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_shoulder_yaw_Link",
+        "geom": "Right_shoulder_yaw_Link_61_collision",
+        "type": "capsule",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_elbow_Link",
+        "geom": "Right_elbow_Link_63_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_wrist_roll_Link",
+        "geom": "Right_wrist_roll_Link_65_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      },
+      {
+        "body": "Right_wrist_yaw__Link",
+        "geom": "Right_wrist_yaw__Link_67_collision",
+        "type": "mesh",
+        "contype": 1,
+        "conaffinity": 1
+      }
+    ]
+  },
+  "pose": {
+    "Left_hip_pitch_joint": 0.0,
+    "Left_hip_roll_joint": 0.0,
+    "Left_hip_yaw_joint": 0.0,
+    "Left_knee_joint": 0.0,
+    "Left_ankle_pitch_joint": 0.0,
+    "Left_ankle_roll_joint": 0.0,
+    "Left_shoulder_pitch_joint": 0.0,
+    "Left_shoulder_roll_joint": -1.57,
+    "Left_shoulder_yaw_joint": 0.0,
+    "Left_elbow_joint": 1.57,
+    "Left_wrist_roll_joint": 0.0,
+    "Left_wrist_yaw_joint": 0.3,
+    "Right_hip_pitch_joint": 0.0,
+    "Right_hip_roll_joint": 0.0,
+    "Right_hip_yaw_joint": 0.0,
+    "Right_knee_joint": 0.0,
+    "Right_ankle_pitch_joint": 0.0,
+    "Right_ankle_roll_joint": 0.0,
+    "Right_shoulder_pitch_joint": 0.0,
+    "Right_shoulder_roll_joint": -1.57,
+    "Right_shoulder_yaw_joint": 0.0,
+    "Right_elbow_joint": 1.57,
+    "Right_wrist_roll_joint": 0.0,
+    "Right_wrist_yaw_joint": 0.3,
+    "waist_yaw_joint": 0.0,
+    "Neck_yaw_joint": 0.0,
+    "Neck_pitch_joint": 0.0
+  },
+  "base_pose": [
+    0,
+    0,
+    0.65,
+    1,
+    0,
+    0,
+    0
+  ],
+  "images": [
+    "whole_body_collision_comparison.png",
+    "nonfoot_collision_closeup.png"
+  ],
+  "note": "Geometry visibility is based on contype/conaffinity; per-pair exclusions/material/forces are not encoded by the colours."
+}

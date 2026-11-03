@@ -1,0 +1,5 @@
+*.onnx binary
+*.npz binary
+*.so binary
+*.so.* binary
+*.stl binary

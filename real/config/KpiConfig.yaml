@@ -1,0 +1,132 @@
+policy_path: "policy_loco/policy_amp.onnx"
+
+#deploy sequence
+joint_names: [
+     "left_hip_pitch_joint", #JX9_120_Motor
+     "left_hip_roll_joint", #JX9_120_Motor
+     "left_hip_yaw_joint", #JX9_120_Motor
+     "left_knee_joint", #JX9_120_Motor
+     "left_ankle_pitch_joint", #JX7_96_Motor
+     "left_ankle_roll_joint", #JX7_96_Motor
+     "left_shoulder_pitch_joint", #JX7_96_Motor
+     "left_shoulder_roll_joint", #JX7_96_Motor
+     "left_shoulder_yaw_joint", #JX6_36_Motor
+     "left_elbow_joint", #JX6_36_Motor
+     "left_wrist_roll_joint", #JX4_8_Motor
+     "left_wrist_yaw_joint", #JX4_8_Motor
+     "right_hip_pitch_joint", #JX9_120_Motor
+     "right_hip_roll_joint", #JX9_120_Motor
+     "right_hip_yaw_joint", #JX9_120_Motor
+     "right_knee_joint", #JX9_120_Motor
+     "right_ankle_pitch_joint", #JX7_96_Motor
+     "right_ankle_roll_joint", #JX7_96_Motor
+     "right_shoulder_pitch_joint", #JX7_96_Motor
+     "right_shoulder_roll_joint", #JX7_96_Motor
+     "right_shoulder_yaw_joint", #JX6_36_Motor
+     "right_elbow_joint", #JX6_36_Motor
+     "right_wrist_roll_joint", #JX4_8_Motor
+     "right_wrist_yaw_joint", #JX4_8_Motor
+     "waist_yaw_joint", #JX9_120_Motor
+     "neck_yaw_joint", #JX4_8_Motor
+     "neck_pitch_joint", #JX4_8_Motor
+]
+
+
+default_angles: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, 1.57, 0.0, 0.3,
+                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, 1.57, 0.0, 0.3,
+                 0.0, 0.0, 0.0]
+
+init_target: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, 1.57, 0.0, 0.3,
+              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, 1.57, 0.0, 0.3,
+              0.0, 0.0, 0.0]
+
+zero_target: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+              0.0, 0.0, 0.0]
+
+down_limit: [-1.92, -0.52, -2.00, -0.35, -0.7, -0.7, -1.57, -1.91, -1.57, -0.87, -1.57, 0.00,
+             -1.92, -0.52, -2.00, -0.35, -0.7, -0.7, -1.57, -1.91, -1.57, -0.87, -1.57, 0.00,
+             -2.00, -1.57, -0.61]
+
+up_limit: [1.22, 2.35, 3.57, 2.26, 0.7, 0.7, 1.57, 1.91, 1.57, 2.26, 1.57, 1.57,
+           1.22, 2.35, 3.57, 2.26, 0.7, 0.7, 1.57, 1.91, 1.57, 2.26, 1.57, 1.57,
+           3.57, 1.57, 0.61]
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!! be careful !!!!!!!!!!!!!!!!!!!!!!!!!!#
+#used in trainning and simulation
+# kp: [187, 187, 187, 187, 102, 102, 102, 102, 40.8, 40.8, 6.7, 6.7, 
+#       187, 187, 187, 187, 102, 102, 102, 102, 40.8, 40.8, 6.7, 6.7, 
+#       187, 6.7, 6.7]
+
+# kd: [18.7, 18.7, 18.7, 18.7, 15.8, 15.8, 15.8, 15.8, 4.1, 4.1, 0.67, 0.67,
+#      18.7, 18.7, 18.7, 18.7, 15.8, 15.8, 15.8, 15.8, 4.1, 4.1, 0.67, 0.67,
+#      18.7, 0.67, 0.67]
+
+#used in real robot, these gains are converted from simualtion/training gains, using our internal formula 
+kp: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 
+     100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,
+     100, 100, 100]
+
+kd: [100, 100, 100, 100, 100, 100, 100, 100, 200, 200, 200, 200, 
+     100, 100, 100, 100, 100, 100, 100, 100, 200, 200, 200, 200,
+     100, 200, 200]
+
+# torque map pd gain settings
+kp_pitch_roll: [100, 50, 100, 50]
+# kp_pitch_roll: [100, 40, 100, 40]
+kd_pitch_roll: [2.0, 0.5, 2.0, 0.5]
+# kd_pitch_roll: [2.0, 1.0, 2.0, 1.0]
+
+ang_vel_scale: 0.2
+dof_pos_scale: 1.0
+dof_vel_scale: 0.05
+action_scale: 0.5
+
+#x_lin y_lin z_ang
+cmd_scale: [1.0, 0.5, 1.57]
+
+angle_map: 0
+
+num_actions: 27
+num_obs: 90
+num_frame_stack: 10
+
+pln_v_max: 0.2
+pln_a_max: 1.0
+pln_Ts: 0.02
+
+log_data: 1
+
+# OpenHLM 风格 state 发布(50Hz 控制 tick 内非阻塞; JAKA 关节序), 供独立录制进程订阅
+state_zmq_bind: "tcp://*:28711"
+
+# mimic_policy_path: "policy_mimic/policy_cutcake.onnx"
+# mimic_command_path: "mimic_command/kpi_cutcake_edit_50Hz.csv"
+
+mimic_num_obs: 141
+mimic_policy_path: "policy_mimic/policy_projected_gravity.onnx"
+mimic_command_path: "mimic_command/motion_modified.csv"
+
+# jaka-mini mimic ZMQ (real-time teleop via pico_retarget_pub.py)
+jakaminimimic_zmq:
+  policy_path: "policy_mimic/latest_m62k_pico_base.onnx"
+  zmq_connect: "tcp://10.5.5.120:28701"
+  zmq_hwm: 1
+  dt_s: 0.02
+  tolerance_s: 0.04
+  future_steps: [0, 1, 2, 3, 4]
+  # Value is written into ZMQ so joint_pos should be in Isaac Lab order
+  default_joint_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, -1.57, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.57, 1.57, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3]
+  default_root_pos: [0.0, 0.0, 0.65]
+
+# jaka-mini mimic ZMQ fixwrist (23-DoF: without left/right wrist yaw and neck yaw/pitch)
+jakaminimimic_zmq_fixwrist:
+  policy_path: "policy_mimic/latest_m64k_fixwrist_newmotion.onnx"
+  zmq_connect: "tcp://10.5.5.120:28701"
+  zmq_hwm: 1
+  dt_s: 0.02
+  tolerance_s: 0.04
+  future_steps: [0, 1, 2, 3, 4]
+  # Value is written into ZMQ so joint_pos should be in Isaac Lab order
+  default_joint_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, -1.57, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.57, 1.57, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3]
+  default_root_pos: [0.0, 0.0, 0.65]

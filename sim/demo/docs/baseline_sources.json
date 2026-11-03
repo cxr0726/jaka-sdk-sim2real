@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-31",
+  "scope": "Verified recoverable pre-source-timeline baseline; earlier replay fixes already retained. See history_provenance.md.",
+  "files": {
+    "demo/include/RealtimeMotionBuffer.hpp": {
+      "sha256": "6539c3090d6bf4d848322a59a9e6ef140a18d64923a419dc21db17a53d9359e0",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/src/RealtimeMotionBuffer.cpp": {
+      "sha256": "f8bc108ff46ace88f046b42fef39d78d63c2879b9a0cde84f5c4427d17d7b294",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/src/FSMMimicJakaMiniZmq.cpp": {
+      "sha256": "a1d10542ee0692391755266e54bfad03ea7030ce7d44ec67e5831815dfd214b3",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/src/FSMMimicJakaMiniZmqFixwrist.cpp": {
+      "sha256": "e6780523e43b812b42a4f13a649bd69d281f4a9a2e5bdcc98370ca2426dc0665",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/include/RLController.hpp": {
+      "sha256": "d2fbd33f83c8d8310c6c76c9013fb0c41b3950d2612036626e7e14eb13c6b4fb",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/src/GlobalVars.cpp": {
+      "sha256": "07091a885ea5a4e1cae2bbd13d9b8b5d74f44b02a377448fa6b86a3484b895d9",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/config/KpiConfig.yaml": {
+      "sha256": "0c59f70a04a9cf3b50a5ccaa5f52ea07f3b412a4563050f1a20a88cd3b096794",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/CMakeLists.txt": {
+      "sha256": "a93162c06d2618d02ba9bd2f74a283e17d7dd45695a1fc99e3ddda0ccbf34d83",
+      "recovery": "exact_pre_source_timeline_files"
+    },
+    "demo/scripts/pub_motion_npz.py": {
+      "bytes": 6057,
+      "sha256": "71362967b2fae91fe8c9b8e975c130e8164ca217c58efac8efd7287575d4bcfa",
+      "recovery": "reconstructed_files"
+    },
+    "demo/scripts/run_npz_demo.sh": {
+      "bytes": 5726,
+      "sha256": "dae60d03c09eeab26a92c589f0dd445f45bdf43837a93809d2e87e1c88d51d04",
+      "recovery": "reconstructed_files"
+    },
+    "demo/scripts/pico_retarget_pub.py": {
+      "bytes": 28732,
+      "sha256": "b546aaf8ea1997e4e655ead038520a629de4826acf0ae3265bddd164a56ff610",
+      "recovery": "exact pre-protocol snapshot"
+    },
+    "demo/scripts/pico_pub_copy.py": {
+      "bytes": 31778,
+      "sha256": "459fab58907abcf815867777227c30da0677af16dc9ce9f6fcec95cc2a346c7c",
+      "recovery": "exact pre-adaptation snapshot; matched parent capture"
+    }
+  }
+}

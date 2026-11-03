@@ -1,0 +1,71 @@
+# Policy configuration for Jaka sim2sim migration (MF — multi-frame future).
+#
+# Mirrors the observation / motion semantics used by
+# checkpoints/jaka-mini/deploy_mujoco_history_jakamini_mf.py
+
+joint_names_simulation:
+  - Left_hip_pitch_joint
+  - Left_hip_roll_joint
+  - Left_hip_yaw_joint
+  - Left_knee_joint
+  - Left_ankle_pitch_joint
+  - Left_ankle_roll_joint
+  - Right_hip_pitch_joint
+  - Right_hip_roll_joint
+  - Right_hip_yaw_joint
+  - Right_knee_joint
+  - Right_ankle_pitch_joint
+  - Right_ankle_roll_joint
+  - waist_yaw_joint
+  - Left_shoulder_pitch_joint
+  - Left_shoulder_roll_joint
+  - Left_shoulder_yaw_joint
+  - Left_elbow_joint
+  - Left_wrist_roll_joint
+  - Left_wrist_yaw_joint
+  - Right_shoulder_pitch_joint
+  - Right_shoulder_roll_joint
+  - Right_shoulder_yaw_joint
+  - Right_elbow_joint
+  - Right_wrist_roll_joint
+  - Right_wrist_yaw_joint
+  - Neck_yaw_joint
+  - Neck_pitch_joint
+
+body_names_simulation:
+  - base_link
+  - Left_hip_pitch_Link
+  - Left_hip_roll_Link
+  - Left_hip_yaw_Link
+  - Left_knee_Link
+  - Left_ankle_pitch_Link
+  - Left_ankle_roll_Link
+  - Right_hip_pitch_Link
+  - Right_hip_roll_Link
+  - Right_hip_yaw_Link
+  - Right_knee_Link
+  - Right_ankle_pitch_Link
+  - Right_ankle_roll_Link
+  - waist_yaw_Link
+  - Left_shoulder_pitch_Link
+  - Left_shoulder_roll_Link
+  - Left_shoulder_yaw_Link
+  - Left_elbow_Link
+  - Left_wrist_roll_Link
+  - Left_wrist_yaw_Link
+  - Right_shoulder_pitch_Link
+  - Right_shoulder_roll_Link
+  - Right_shoulder_yaw_Link
+  - Right_elbow_Link
+  - Right_wrist_roll_Link
+  - Right_wrist_yaw__Link
+  - Neck_yaw_Link
+  - Neck_pitch_Link
+
+motion:
+  motion_backend: raw_npz
+  motion_path: jaka_data/dance1_subject2_mf/motion_mf.npz
+  # MF policy uses 5 future steps (0=current, 1..4)
+  future_steps: [0, 1, 2, 3, 4]
+
+  

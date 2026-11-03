@@ -1,0 +1,193 @@
+{
+  "source": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/Khan_mini_sym.xml",
+  "output": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/Khan_mini_contact.xml",
+  "source_sha256": "57204431ce17f3b6a03ad36c3cc732da99b6511cfaa6631a020a37c548602a8b",
+  "output_sha256": "a1cf8310a743c47b2843b136624732d054b094aafdd570a3f40b2450f482d1ea",
+  "enabled_external_cad_geoms": [
+    {
+      "body": "base_link",
+      "mesh": "base_link",
+      "old_contype": "0",
+      "old_conaffinity": "0"
+    },
+    {
+      "body": "Left_knee_Link",
+      "mesh": "Left_knee_Link",
+      "old_contype": "0",
+      "old_conaffinity": "0"
+    },
+    {
+      "body": "Left_ankle_pitch_Link",
+      "mesh": "Left_ankle_pitch_Link",
+      "old_contype": "0",
+      "old_conaffinity": "0"
+    },
+    {
+      "body": "Right_knee_Link",
+      "mesh": "Right_knee_Link",
+      "old_contype": "0",
+      "old_conaffinity": "0"
+    },
+    {
+      "body": "Right_ankle_pitch_Link",
+      "mesh": "Right_ankle_pitch_Link",
+      "old_contype": "0",
+      "old_conaffinity": "0"
+    }
+  ],
+  "foot_model": "Original Left/Right_ankle_roll_Link.STL convex hull, including upper foot structure",
+  "material_parameters": "Unchanged SDK defaults; not measured hardware calibration",
+  "mechanical_pair_excludes": [
+    {
+      "body1": "base_link",
+      "body2": "Left_hip_roll_Link",
+      "reason": "Nested hip gimbal convex-envelope overlap, up to ~14.5mm in reference geometry check; not an allowed external penetration."
+    },
+    {
+      "body1": "base_link",
+      "body2": "Right_hip_roll_Link",
+      "reason": "Nested hip gimbal convex-envelope overlap, up to ~14.5mm in reference geometry check; not an allowed external penetration."
+    }
+  ],
+  "collision_bits": {
+    "external": [
+      1,
+      31
+    ],
+    "left_foot": [
+      2,
+      23
+    ],
+    "right_foot": [
+      4,
+      15
+    ],
+    "left_ankle_joint_envelope": [
+      8,
+      29
+    ],
+    "right_ankle_joint_envelope": [
+      16,
+      27
+    ]
+  },
+  "collision_truth_table": {
+    "external / external": true,
+    "external / left_foot": true,
+    "external / right_foot": true,
+    "external / left_ankle_joint_envelope": true,
+    "external / right_ankle_joint_envelope": true,
+    "left_foot / external": true,
+    "left_foot / left_foot": true,
+    "left_foot / right_foot": true,
+    "left_foot / left_ankle_joint_envelope": false,
+    "left_foot / right_ankle_joint_envelope": true,
+    "right_foot / external": true,
+    "right_foot / left_foot": true,
+    "right_foot / right_foot": true,
+    "right_foot / left_ankle_joint_envelope": true,
+    "right_foot / right_ankle_joint_envelope": false,
+    "left_ankle_joint_envelope / external": true,
+    "left_ankle_joint_envelope / left_foot": false,
+    "left_ankle_joint_envelope / right_foot": true,
+    "left_ankle_joint_envelope / left_ankle_joint_envelope": true,
+    "left_ankle_joint_envelope / right_ankle_joint_envelope": true,
+    "right_ankle_joint_envelope / external": true,
+    "right_ankle_joint_envelope / left_foot": true,
+    "right_ankle_joint_envelope / right_foot": false,
+    "right_ankle_joint_envelope / left_ankle_joint_envelope": true,
+    "right_ankle_joint_envelope / right_ankle_joint_envelope": true
+  },
+  "lower_leg_partition": [
+    {
+      "source_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Left_knee_Link.STL",
+      "output_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Left_knee_main_contact.STL",
+      "sha256": "22e12c0749876c52f355e3567efcd98b738ea0e039400667ede0349ef5bf76e0",
+      "cut_z_m": -0.25,
+      "region": "proximal",
+      "bounds_m": [
+        [
+          -0.040571861,
+          -0.0480000004,
+          -0.25
+        ],
+        [
+          0.0505000018,
+          0.048001308,
+          0.0406414866
+        ]
+      ],
+      "hull_triangles": 240
+    },
+    {
+      "source_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Left_knee_Link.STL",
+      "output_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Left_knee_ankle_joint_contact.STL",
+      "sha256": "96e0acf23ae99413b8ae42bdd022d6bd31c1476c216b3a52cb86dc155c6d3421",
+      "cut_z_m": -0.25,
+      "region": "distal ankle-joint envelope",
+      "bounds_m": [
+        [
+          -0.0224445488,
+          -0.0318112727,
+          -0.3182185888
+        ],
+        [
+          0.0382142673,
+          0.031811275,
+          -0.25
+        ]
+      ],
+      "hull_triangles": 84
+    },
+    {
+      "source_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Right_knee_Link.STL",
+      "output_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Right_knee_main_contact.STL",
+      "sha256": "11bd2c4804ced85e1969bec28a308327e8c7f1f2f12e713e72870fda01e1ff37",
+      "cut_z_m": -0.25,
+      "region": "proximal",
+      "bounds_m": [
+        [
+          -0.040571861,
+          -0.047999993,
+          -0.25
+        ],
+        [
+          0.0505000018,
+          0.0480001718,
+          0.0405000001
+        ]
+      ],
+      "hull_triangles": 242
+    },
+    {
+      "source_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Right_knee_Link.STL",
+      "output_stl": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/meshes/Right_knee_ankle_joint_contact.STL",
+      "sha256": "33bd7ebb502a20db8f4ca1bc331521bed84a7cebd2eaa035a9ed0dbebeef39e9",
+      "cut_z_m": -0.25,
+      "region": "distal ankle-joint envelope",
+      "bounds_m": [
+        [
+          -0.022444549,
+          -0.0318112786,
+          -0.318218559
+        ],
+        [
+          0.0382047279,
+          0.031811275,
+          -0.25
+        ]
+      ],
+      "hull_triangles": 86
+    }
+  ],
+  "mechanical_mask_reason": "Whole knee convex hull fills ankle fork; same-side distal envelope/foot hull overlaps by ~32mm at neutral. Only that local joint package pair is masked. Main lower leg/own foot, every opposite-side pair and foot/foot remain enabled.",
+  "unchanged": [
+    "all inertial definitions",
+    "all joints and limits",
+    "armature and passive damping/frictionloss",
+    "actuators",
+    "parallel linkage equality constraints",
+    "ground",
+    "internal linkage collision masks"
+  ]
+}

@@ -1,0 +1,335 @@
+{
+  "onnx": "/home/cxr0726/workspace/jaka_supermimic/SuperMimic-Reproduced-jaka/exports/khan_lafan1_delay_covex/ckpt_0100000.onnx",
+  "onnx_sha256": "67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b",
+  "checkpoint": "/home/cxr0726/workspace/jaka_supermimic/SuperMimic-Reproduced-jaka/logs/khan_lafan1_delay_covex/ckpt_0100000.pt",
+  "iteration": 100000,
+  "input_layout": "packed",
+  "opset": 17,
+  "dtype": "float32",
+  "metadata": {
+    "run_path": "/home/cxr0726/workspace/jaka_supermimic/SuperMimic-Reproduced-jaka/logs/khan_lafan1_delay_covex/ckpt_0100000.pt",
+    "checkpoint_sha256": "07d56d83c40fa170e5d77c54c6cff5dfcb110dfb016864563aa8660c3b7b7fce",
+    "robot": "khan_mini",
+    "joint_names": "Left_hip_pitch_joint,Left_hip_roll_joint,Left_hip_yaw_joint,Left_knee_joint,Left_ankle_pitch_joint,Left_ankle_roll_joint,Right_hip_pitch_joint,Right_hip_roll_joint,Right_hip_yaw_joint,Right_knee_joint,Right_ankle_pitch_joint,Right_ankle_roll_joint,waist_yaw_joint,Left_shoulder_pitch_joint,Left_shoulder_roll_joint,Left_shoulder_yaw_joint,Left_elbow_joint,Left_wrist_roll_joint,Left_wrist_yaw_joint,Right_shoulder_pitch_joint,Right_shoulder_roll_joint,Right_shoulder_yaw_joint,Right_elbow_joint,Right_wrist_roll_joint,Right_wrist_yaw_joint,Neck_yaw_joint,Neck_pitch_joint",
+    "joint_stiffness": "187,187,187,187,100,50,187,187,187,187,100,50,187,102,102,40.8,40.8,6.7,6.7,102,102,40.8,40.8,6.7,6.7,6.7,6.7",
+    "joint_damping": "18.7,18.7,18.7,18.7,2,0.5,18.7,18.7,18.7,18.7,2,0.5,18.7,10.2,10.2,4,4,0.67,0.67,10.2,10.2,4,4,0.67,0.67,0.67,0.67",
+    "default_joint_pos": "0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1.57,0,1.57,0,0.3,0,-1.57,0,1.57,0,0.3,0,0",
+    "action_scale": "0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5",
+    "effort_limit": "120,120,120,120,96,96,120,120,120,120,96,96,120,96,96,36,36,8,8,96,96,36,36,8,8,8,8",
+    "velocity_limit": "11.52,11.52,11.52,11.52,14.6,14.6,11.52,11.52,11.52,11.52,14.6,14.6,11.519,11.5,11.5,15.7,15.7,12.5,12.5,11.5,11.5,15.7,15.7,12.5,12.5,8,8",
+    "armature": "0.03,0.03,0.03,0.03,0.3,0.016,0.03,0.03,0.03,0.03,0.3,0.016,0.03,0.016,0.016,0.01,0.01,0.01,0.01,0.016,0.016,0.01,0.01,0.01,0.01,0.01,0.01",
+    "joint_pos_lower": "-1.9198,-0.5236,-2.0071,-0.349,-0.5236,-0.349,-1.9198,-0.5236,-2.0071,-0.349,-0.5236,-0.349,-2.0071,-1.5707,-1.9189,-1.5707,-0.8726,-1.5707,0.0,-1.5707,-1.9189,-1.5707,-0.8726,-1.5707,0.0,-1.5707,-0.6108",
+    "joint_pos_upper": "1.2217,2.3562,3.5779,2.2689,0.6108,0.349,1.2217,3.5779,3.5779,2.2689,0.6108,0.349,3.5779,1.5707,1.9189,1.5707,2.2689,1.5707,1.5707,1.5707,1.9189,1.5707,2.2689,1.5707,1.5707,1.5707,0.6108",
+    "soft_joint_pos_limit_factor": "0.9",
+    "velocity_limit_enforced_in_training": "false",
+    "command_names": "motion",
+    "observation_names": "command,motion_anchor_ori_b,projected_gravity,base_ang_vel,joint_pos,joint_vel,actions",
+    "observation_history": "5",
+    "goal_frames": "5",
+    "control_dt": "0.02",
+    "anchor_body_name": "base_link",
+    "root_body_name": "base_link",
+    "com_body_name": "waist_yaw_Link",
+    "body_names": "base_link,Left_hip_roll_Link,Left_knee_Link,Left_ankle_roll_Link,Right_hip_roll_Link,Right_knee_Link,Right_ankle_roll_Link,waist_yaw_Link,Left_shoulder_roll_Link,Left_elbow_Link,Left_wrist_yaw_Link,Right_shoulder_roll_Link,Right_elbow_Link,Right_wrist_yaw__Link,Neck_pitch_Link",
+    "observation_layout": "isaac_khan",
+    "input_layout": "packed",
+    "onnx_deployment_schema": "{\"action\": {\"clip\": null, \"execution_noise\": false, \"last_action\": \"previous raw actions, not PD target or scaled action\", \"meaning\": \"raw normalized joint-position action\", \"pd_target\": \"default_joint_pos + action_scale * actions\", \"smoothing\": false, \"tanh\": false}, \"actor_stateful\": false, \"angular_velocity_frame\": \"base_link body frame, radians/second\", \"control_dt\": 0.02, \"control_frequency_hz\": 50, \"dimensions\": {\"actions\": 27, \"goal\": 155, \"obs\": 620, \"policy_obs\": 465}, \"format\": \"supermimic.khan.actor\", \"future_frames\": 5, \"future_offsets\": [0, 1, 2, 3, 4], \"future_orientation_history\": false, \"goal_terms\": [{\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"reference_root_displacement_b\", \"packed_start\": 0, \"packed_stop\": 15, \"per_frame_dim\": 3, \"start\": 0, \"stop\": 15}, {\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"reference_world_z\", \"packed_start\": 15, \"packed_stop\": 20, \"per_frame_dim\": 1, \"start\": 15, \"stop\": 20}, {\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"reference_joint_pos\", \"packed_start\": 20, \"packed_stop\": 155, \"per_frame_dim\": 27, \"start\": 20, \"stop\": 155}], \"history\": 5, \"history_layout\": \"oldest_to_newest_per_term\", \"history_offsets\": [-4, -3, -2, -1, 0], \"history_reset\": \"repeat first sensor sample five times; previous action zero\", \"input_layout\": \"packed\", \"inputs\": [{\"dtype\": \"float32\", \"name\": \"obs\", \"shape\": [\"batch\", 620]}], \"joint_pos\": \"measured radians minus default_joint_pos, in joint_names order\", \"observation_layout\": \"isaac_khan\", \"observation_noise\": false, \"orientation\": \"R_base(t)^T @ R_ref(t+k)\", \"outputs\": [{\"dtype\": \"float32\", \"name\": \"actions\", \"shape\": [\"batch\", 27]}], \"packed_order\": [\"goal\", \"policy_obs\"], \"policy_terms\": [{\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"motion_anchor_ori_b\", \"packed_start\": 155, \"packed_stop\": 185, \"per_frame_dim\": 6, \"start\": 0, \"stop\": 30}, {\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"projected_gravity\", \"packed_start\": 185, \"packed_stop\": 200, \"per_frame_dim\": 3, \"start\": 30, \"stop\": 45}, {\"caller_scale\": 0.5, \"frames\": 5, \"name\": \"base_ang_vel\", \"packed_start\": 200, \"packed_stop\": 215, \"per_frame_dim\": 3, \"start\": 45, \"stop\": 60}, {\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"joint_pos\", \"packed_start\": 215, \"packed_stop\": 350, \"per_frame_dim\": 27, \"start\": 60, \"stop\": 195}, {\"caller_scale\": 0.2, \"frames\": 5, \"name\": \"joint_vel\", \"packed_start\": 350, \"packed_stop\": 485, \"per_frame_dim\": 27, \"start\": 195, \"stop\": 330}, {\"caller_scale\": 1.0, \"frames\": 5, \"name\": \"actions\", \"packed_start\": 485, \"packed_stop\": 620, \"per_frame_dim\": 27, \"start\": 330, \"stop\": 465}], \"projected_gravity\": \"R_base^T @ [0,0,-1]\", \"quaternion_order\": \"wxyz\", \"reference_joint_pos\": \"absolute radians, not relative to default_joint_pos\", \"reference_motion_embedded\": false, \"reference_tail\": \"clamp each future frame to the last frame of its clip\", \"robot\": \"khan_mini\", \"root_displacement\": \"R_ref(t)^T @ (p_ref(t+k)-p_ref(t)); full reference rotation\", \"rotation_6d_order\": [\"R00\", \"R01\", \"R10\", \"R11\", \"R20\", \"R21\"], \"running_normalization\": false, \"sensor_scale_location\": \"caller, once; network scale buffers remain identity\", \"training_decimation\": 4, \"training_physics_dt\": 0.005, \"version\": 1}",
+    "robot_contract": "{\"action_scale\": {\"Left_ankle_pitch_joint\": 0.5, \"Left_ankle_roll_joint\": 0.5, \"Left_elbow_joint\": 0.5, \"Left_hip_pitch_joint\": 0.5, \"Left_hip_roll_joint\": 0.5, \"Left_hip_yaw_joint\": 0.5, \"Left_knee_joint\": 0.5, \"Left_shoulder_pitch_joint\": 0.5, \"Left_shoulder_roll_joint\": 0.5, \"Left_shoulder_yaw_joint\": 0.5, \"Left_wrist_roll_joint\": 0.5, \"Left_wrist_yaw_joint\": 0.5, \"Neck_pitch_joint\": 0.5, \"Neck_yaw_joint\": 0.5, \"Right_ankle_pitch_joint\": 0.5, \"Right_ankle_roll_joint\": 0.5, \"Right_elbow_joint\": 0.5, \"Right_hip_pitch_joint\": 0.5, \"Right_hip_roll_joint\": 0.5, \"Right_hip_yaw_joint\": 0.5, \"Right_knee_joint\": 0.5, \"Right_shoulder_pitch_joint\": 0.5, \"Right_shoulder_roll_joint\": 0.5, \"Right_shoulder_yaw_joint\": 0.5, \"Right_wrist_roll_joint\": 0.5, \"Right_wrist_yaw_joint\": 0.5, \"waist_yaw_joint\": 0.5}, \"anchor_body\": \"base_link\", \"com_body\": \"waist_yaw_Link\", \"joint_names\": [\"Left_hip_pitch_joint\", \"Left_hip_roll_joint\", \"Left_hip_yaw_joint\", \"Left_knee_joint\", \"Left_ankle_pitch_joint\", \"Left_ankle_roll_joint\", \"Right_hip_pitch_joint\", \"Right_hip_roll_joint\", \"Right_hip_yaw_joint\", \"Right_knee_joint\", \"Right_ankle_pitch_joint\", \"Right_ankle_roll_joint\", \"waist_yaw_joint\", \"Left_shoulder_pitch_joint\", \"Left_shoulder_roll_joint\", \"Left_shoulder_yaw_joint\", \"Left_elbow_joint\", \"Left_wrist_roll_joint\", \"Left_wrist_yaw_joint\", \"Right_shoulder_pitch_joint\", \"Right_shoulder_roll_joint\", \"Right_shoulder_yaw_joint\", \"Right_elbow_joint\", \"Right_wrist_roll_joint\", \"Right_wrist_yaw_joint\", \"Neck_yaw_joint\", \"Neck_pitch_joint\"], \"model_sha256\": \"a25f2da6aa75dbf9b298a7cf32b7c22e71c8076861fc9eed92cd0b964af0871a\", \"observation_layout\": \"isaac_khan\", \"observation_schema\": {\"actor_goal_noise\": false, \"critic_extra_reference\": {\"coordinate_frames\": {\"projected_gravity\": \"future_reference_root\", \"root_ang_vel_b\": \"future_reference_root\", \"root_lin_vel_h\": \"future_reference_heading\"}, \"dimensions\": [27, 3, 3, 3], \"flatten_order\": \"frame_major\", \"future_frames\": 5, \"network_divisors\": [5.0, 1.0, 2.0, 1.0], \"order\": [\"joint_vel\", \"projected_gravity\", \"root_ang_vel_b\", \"root_lin_vel_h\"], \"per_frame_dim\": 36}, \"critic_future_orientation\": true, \"critic_goal_dim\": 365, \"critic_input_dim\": 545, \"critic_reference_noise\": false, \"critic_reference_order\": [\"command\", \"future_anchor_ori_b\", \"extra_reference_frames\"], \"critic_tracking_errors\": {\"append_after_original_root_error4\": true, \"dimensions\": [27, 45, 6], \"order\": [\"reference_minus_actual_joint_pos\", \"reanchored_body_position_error_heading\", \"full_root_relative_rotation_6d\"], \"scales\": [1.0, 1.0, 1.0], \"tracked_body_count\": 15}, \"displacement_frame\": \"current_reference_base_full_rotation\", \"future_frames\": 5, \"future_offsets\": [0, 1, 2, 3, 4], \"goal_dim\": 155, \"goal_order\": [\"reference_root_displacement_b\", \"reference_world_z\", \"reference_joint_pos\"], \"history\": 5, \"history_order\": \"oldest_to_newest_per_term\", \"noise_half_width_before_scale\": {\"base_ang_vel\": 0.2, \"future_anchor_ori_b\": 0.05, \"goal_joint_pos\": 0.0, \"goal_root_displacement\": 0.0, \"goal_root_z\": 0.0, \"joint_pos_rel\": 0.01, \"joint_vel_rel\": 0.5, \"last_action\": 0.0, \"projected_gravity\": 0.07}, \"orientation\": \"inverse(robot_base_quat)*reference_base_quat; matrix[:,:2] row-major\", \"policy_dim\": 465, \"policy_order\": [\"future_anchor_ori_b\", \"projected_gravity_history\", \"base_ang_vel_history\", \"joint_pos_rel_history\", \"joint_vel_rel_history\", \"last_action_history\"], \"sensor_scales\": {\"base_ang_vel\": 0.5, \"joint_vel\": 0.2}}, \"profile_sha256\": \"ddc9f1ec6687515f400c22df1756a7d94cbd4fc0bade67275d12be938b99e321\", \"reward_config\": {\"dt\": 0.02, \"std_body_ang_vel\": 3.14, \"std_body_lin_vel\": 1.0, \"std_body_ori\": 0.4, \"std_body_pos\": 0.3, \"std_neck_pos\": 0.3, \"std_neck_vel\": 1.0, \"std_root_ori\": 0.4, \"std_root_pos\": 0.3, \"w_action_rate\": -0.1, \"w_body_ang_vel\": 1.0, \"w_body_lin_vel\": 1.0, \"w_body_ori\": 1.0, \"w_body_pos\": 1.0, \"w_joint_limit\": -2.0, \"w_neck_pos\": 0.5, \"w_neck_vel\": 0.1, \"w_root_ori\": 0.5, \"w_root_pos\": 0.5}, \"robot\": \"khan_mini\", \"root_body\": \"base_link\", \"simulation_schema\": {\"actuator_delay\": true, \"actuator_delay_enabled_in_training\": true, \"actuator_delay_max_ms\": 20.0, \"actuator_delay_physics_dt_s\": 0.005, \"actuator_delay_sampling\": \"per_environment_per_fused_group_held_for_episode\", \"delay_in_xi\": false, \"delay_initial_pending_target\": \"zero_physical_target_after_robot_reset\", \"foot_collision\": \"one_full_CAD_convex_mesh_per_foot\", \"nominal_evaluation_delay\": false, \"reference_height_offset\": 0.0, \"reset_offset_scope\": \"actual_robot_only_all_resets_including_nominal_evaluation\", \"reset_root_z_offset\": 0.05, \"world_model_delay_queue\": false, \"world_model_input_dim\": 125, \"xi_dim\": 31}, \"tracked_bodies\": [\"base_link\", \"Left_hip_roll_Link\", \"Left_knee_Link\", \"Left_ankle_roll_Link\", \"Right_hip_roll_Link\", \"Right_knee_Link\", \"Right_ankle_roll_Link\", \"waist_yaw_Link\", \"Left_shoulder_roll_Link\", \"Left_elbow_Link\", \"Left_wrist_yaw_Link\", \"Right_shoulder_roll_Link\", \"Right_elbow_Link\", \"Right_wrist_yaw__Link\", \"Neck_pitch_Link\"], \"version\": 5}",
+    "policy_config": "{\"decoder_hidden\": [2048, 1024, 512, 256], \"decoder_last_gain\": 0.01, \"encoder_hidden\": [2048, 1024, 512, 256], \"future_frames\": 5, \"goal_dim\": 155, \"goal_term_scale\": [1.0, 1.0, 1.0], \"history\": 5, \"latent_dim\": 32, \"num_joints\": 27, \"num_tracked_bodies\": 15, \"obs_term_scale\": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], \"observation_layout\": \"isaac_khan\"}",
+    "checkpoint_iteration": "100000"
+  },
+  "schema": {
+    "version": 1,
+    "format": "supermimic.khan.actor",
+    "input_layout": "packed",
+    "robot": "khan_mini",
+    "observation_layout": "isaac_khan",
+    "dimensions": {
+      "obs": 620,
+      "goal": 155,
+      "policy_obs": 465,
+      "actions": 27
+    },
+    "inputs": [
+      {
+        "name": "obs",
+        "shape": [
+          "batch",
+          620
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "actions",
+        "shape": [
+          "batch",
+          27
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "packed_order": [
+      "goal",
+      "policy_obs"
+    ],
+    "goal_terms": [
+      {
+        "name": "reference_root_displacement_b",
+        "start": 0,
+        "stop": 15,
+        "packed_start": 0,
+        "packed_stop": 15,
+        "per_frame_dim": 3,
+        "frames": 5,
+        "caller_scale": 1.0
+      },
+      {
+        "name": "reference_world_z",
+        "start": 15,
+        "stop": 20,
+        "packed_start": 15,
+        "packed_stop": 20,
+        "per_frame_dim": 1,
+        "frames": 5,
+        "caller_scale": 1.0
+      },
+      {
+        "name": "reference_joint_pos",
+        "start": 20,
+        "stop": 155,
+        "packed_start": 20,
+        "packed_stop": 155,
+        "per_frame_dim": 27,
+        "frames": 5,
+        "caller_scale": 1.0
+      }
+    ],
+    "policy_terms": [
+      {
+        "name": "motion_anchor_ori_b",
+        "start": 0,
+        "stop": 30,
+        "packed_start": 155,
+        "packed_stop": 185,
+        "per_frame_dim": 6,
+        "frames": 5,
+        "caller_scale": 1.0
+      },
+      {
+        "name": "projected_gravity",
+        "start": 30,
+        "stop": 45,
+        "packed_start": 185,
+        "packed_stop": 200,
+        "per_frame_dim": 3,
+        "frames": 5,
+        "caller_scale": 1.0
+      },
+      {
+        "name": "base_ang_vel",
+        "start": 45,
+        "stop": 60,
+        "packed_start": 200,
+        "packed_stop": 215,
+        "per_frame_dim": 3,
+        "frames": 5,
+        "caller_scale": 0.5
+      },
+      {
+        "name": "joint_pos",
+        "start": 60,
+        "stop": 195,
+        "packed_start": 215,
+        "packed_stop": 350,
+        "per_frame_dim": 27,
+        "frames": 5,
+        "caller_scale": 1.0
+      },
+      {
+        "name": "joint_vel",
+        "start": 195,
+        "stop": 330,
+        "packed_start": 350,
+        "packed_stop": 485,
+        "per_frame_dim": 27,
+        "frames": 5,
+        "caller_scale": 0.2
+      },
+      {
+        "name": "actions",
+        "start": 330,
+        "stop": 465,
+        "packed_start": 485,
+        "packed_stop": 620,
+        "per_frame_dim": 27,
+        "frames": 5,
+        "caller_scale": 1.0
+      }
+    ],
+    "future_frames": 5,
+    "history": 5,
+    "future_offsets": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "history_offsets": [
+      -4,
+      -3,
+      -2,
+      -1,
+      0
+    ],
+    "history_layout": "oldest_to_newest_per_term",
+    "history_reset": "repeat first sensor sample five times; previous action zero",
+    "future_orientation_history": false,
+    "reference_tail": "clamp each future frame to the last frame of its clip",
+    "root_displacement": "R_ref(t)^T @ (p_ref(t+k)-p_ref(t)); full reference rotation",
+    "reference_joint_pos": "absolute radians, not relative to default_joint_pos",
+    "joint_pos": "measured radians minus default_joint_pos, in joint_names order",
+    "projected_gravity": "R_base^T @ [0,0,-1]",
+    "angular_velocity_frame": "base_link body frame, radians/second",
+    "quaternion_order": "wxyz",
+    "orientation": "R_base(t)^T @ R_ref(t+k)",
+    "rotation_6d_order": [
+      "R00",
+      "R01",
+      "R10",
+      "R11",
+      "R20",
+      "R21"
+    ],
+    "sensor_scale_location": "caller, once; network scale buffers remain identity",
+    "running_normalization": false,
+    "observation_noise": false,
+    "actor_stateful": false,
+    "reference_motion_embedded": false,
+    "action": {
+      "meaning": "raw normalized joint-position action",
+      "clip": null,
+      "tanh": false,
+      "smoothing": false,
+      "execution_noise": false,
+      "pd_target": "default_joint_pos + action_scale * actions",
+      "last_action": "previous raw actions, not PD target or scaled action"
+    },
+    "control_dt": 0.02,
+    "control_frequency_hz": 50,
+    "training_physics_dt": 0.005,
+    "training_decimation": 4
+  },
+  "validation": {
+    "provider": "CPUExecutionProvider",
+    "atol": 0.0001,
+    "rtol": 0.0001,
+    "all_checks_passed": true,
+    "groups": [
+      {
+        "name": "zero",
+        "samples": 1,
+        "max_action_abs_error": 9.5367431640625e-07,
+        "max_pd_target_abs_error_rad": 4.76837158203125e-07
+      },
+      {
+        "name": "random_batch1",
+        "samples": 64,
+        "max_action_abs_error": 4.76837158203125e-06,
+        "max_pd_target_abs_error_rad": 2.384185791015625e-06
+      },
+      {
+        "name": "random_dynamic_batch3",
+        "samples": 3,
+        "max_action_abs_error": 3.337860107421875e-06,
+        "max_pd_target_abs_error_rad": 1.6689300537109375e-06
+      },
+      {
+        "name": "motion_reference_states",
+        "samples": 64,
+        "max_action_abs_error": 2.86102294921875e-06,
+        "max_pd_target_abs_error_rad": 1.430511474609375e-06
+      }
+    ],
+    "motion": {
+      "path": "/home/cxr0726/workspace/jaka_supermimic/SuperMimic-Reproduced-jaka/data/npz/khan_mini/mixed/walk1_subject1.npz",
+      "sha256": "d0e51690bbd4a9398d8c410e7570fcea08bb8eb0c8ee60d35fc577e20aad3507",
+      "frames": [
+        0,
+        207,
+        414,
+        622,
+        829,
+        1036,
+        1244,
+        1451,
+        1658,
+        1866,
+        2073,
+        2281,
+        2488,
+        2695,
+        2903,
+        3110,
+        3317,
+        3525,
+        3732,
+        3939,
+        4147,
+        4354,
+        4562,
+        4769,
+        4976,
+        5184,
+        5391,
+        5598,
+        5806,
+        6013,
+        6220,
+        6428,
+        6635,
+        6843,
+        7050,
+        7257,
+        7465,
+        7672,
+        7879,
+        8087,
+        8294,
+        8501,
+        8709,
+        8916,
+        9124,
+        9331,
+        9538,
+        9746,
+        9953,
+        10160,
+        10368,
+        10575,
+        10782,
+        10990,
+        11197,
+        11405,
+        11612,
+        11819,
+        12027,
+        12234,
+        12441,
+        12649,
+        12856,
+        13064
+      ],
+      "physics_rollout": false
+    },
+    "max_action_abs_error": 4.76837158203125e-06,
+    "max_pd_target_abs_error_rad": 2.384185791015625e-06
+  },
+  "versions": {
+    "torch": "2.14.1+cu130",
+    "onnx": "1.23.2",
+    "onnxruntime": "1.31.1"
+  }
+}

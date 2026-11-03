@@ -1,0 +1,11 @@
+{
+  "source_model": "/home/cxr0726/workspace/JAKA_comparison/sim/sdk/assets/khan_mini/Khan_mini_contact.xml",
+  "source_model_sha256": "a1cf8310a743c47b2843b136624732d054b094aafdd570a3f40b2450f482d1ea",
+  "renderer_mujoco_version": "3.16.0",
+  "method": "Static visual pass plus compiled convex-hull collision pass; no policy or mj_step.",
+  "images": [
+    "foot_hull_zoom.png",
+    "body_contact_overview.png"
+  ],
+  "note": "CAD-envelope approximation for review, not calibrated hardware contact material/geometry."
+}

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Host-local ROS 2 DDS for CycloneDDS.
+  - Uses loopback only.
+  - Disables multicast and CycloneDDS shared memory.
+  - Peers are restricted to 127.0.0.1.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+    <Domain id="any">
+        <General>
+            <AllowMulticast>false</AllowMulticast>
+            <EnableMulticastLoopback>true</EnableMulticastLoopback>
+            <Interfaces>
+                <NetworkInterface name="lo"/>
+            </Interfaces>
+        </General>
+        <Discovery>
+            <ParticipantIndex>auto</ParticipantIndex>
+            <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+            <Peers>
+                <Peer Address="127.0.0.1"/>
+                <Peer Address="10.42.0.2"/>
+            </Peers>
+        </Discovery>
+        <SharedMemory>
+            <Enable>false</Enable>
+            <LogLevel>warn</LogLevel>
+        </SharedMemory>
+    </Domain>
+</CycloneDDS>

@@ -1,0 +1,23 @@
+# This repository contains only the simulation and real deployment projects.
+/*
+!/.gitignore
+!/sim/
+!/real/
+
+# Keep local Git metadata, environments, caches and build outputs out of snapshots.
+.git/
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+build*/
+install/
+log/
+logs/
+data_log/
+.DS_Store
+
+# Personal recorded episodes; standalone sample motions remain versioned.
+/real/scripts/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]*/

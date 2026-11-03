@@ -1,0 +1,21 @@
+# MuJoCo-only config overlay.
+# Keep this file limited to simulation-specific gains and initial pose.
+# These PD gains are for MuJoCo simulation only and are not real-robot gains.
+
+kps: [187, 187, 187, 187, 100, 50, 102, 102, 40.8, 40.8, 6.7, 6.7,
+      187, 187, 187, 187, 100, 50, 102, 102, 40.8, 40.8, 6.7, 6.7,
+      187, 6.7, 6.7]
+
+kds: [18.7, 18.7, 18.7, 18.7, 2.0, 0.5, 10.2, 10.2, 4.0, 4.0, 0.67, 0.67,
+      18.7, 18.7, 18.7, 18.7, 2.0, 0.5, 10.2, 10.2, 4.0, 4.0, 0.67, 0.67,
+      18.7, 0.67, 0.67]
+
+kps_pr: [100, 50, 100, 50]
+# kps_pr: [100, 40, 100, 40]
+kds_pr: [2, 0.5, 2, 0.5]
+# kds_pr: [2, 1.0, 2, 1.0]
+
+# Straight-leg CAD sole is about 0.648 m below the root. Spawn just above it;
+# this is simulation initialization, independent of Pico reference height offset.
+init_base_pos: [0.0, 0.0, 0.65]
+init_base_quat: [1.0, 0.0, 0.0, 0.0]

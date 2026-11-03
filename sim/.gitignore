@@ -1,0 +1,16 @@
+# Generated build products and local Python environments.
+/demo/build*/
+/demo/install/
+/demo/log/
+/demo/.venv*/
+/demo/.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Personal recorded episodes stay local. Keep the standalone sample NPZ files.
+/demo/scripts/20261022-221234/
+/demo/scripts/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]*/
+
+# SDK libraries, ONNX policies, meshes and sample motions are intentionally tracked.
