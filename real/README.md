@@ -2,6 +2,10 @@
 
 [简体中文](README.zh-CN.md)
 
+Khan SuperMimic real deployment uses YAML-owned joint parameters and hardware
+gains. See the [migration and validation notes](docs/supermimic_deployment.zh-CN.md)
+for the LB+B entry/exit gesture, source-clock buffer and offline checks.
+
 `kpi_deploy_real` runs the locomotion policy and finite-state machine (FSM) for
 the legged-waist robot. Hardware communication is delegated to
 `legged_waist_controller::RobotIntf`, supplied by the bundled

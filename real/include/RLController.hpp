@@ -9,6 +9,8 @@
 #include <eigen3/Eigen/Dense>
 #include "robot_intf.hpp"
 #include "RealtimeMotionBuffer.hpp"
+#include "SuperRealtimeMotionBuffer.hpp"
+#include "SuperMimicDeployment.hpp"
 
 namespace RLController
 {
@@ -22,6 +24,7 @@ namespace RLController
         FSM_MIMIC = 10, // mimic reference motion via ONNX policy
         FSM_JAKAMINIMIMIC_ZMQ, // servo on, jaka-mini mimic with ZMQ real-time motion
         FSM_JAKAMINIMIMIC_ZMQ_FIXWRIST, // servo on, jaka-mini mimic 23-DoF with ZMQ real-time motion
+        FSM_JAKAMINIMIMIC_SUPERZMQ, // Khan SuperMimic, hardware gains remain from YAML
     } FSMSTATE;
 
     typedef enum
@@ -44,6 +47,7 @@ namespace RLController
     extern void FSMMimicEnter(FSMSTATE from);
     extern void FSMMimicJakaMiniZmqEnter(FSMSTATE from);
     extern void FSMMimicJakaMiniZmqFixwristEnter(FSMSTATE from);
+    extern void FSMMimicJakaMiniSuperZmqEnter(FSMSTATE from);
 
     struct RefMotion
     {
@@ -135,6 +139,21 @@ namespace RLController
     extern Eigen::VectorXf mJakaMiniZmqFixwristDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniZmqFixwristDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniZmqFixwristDefaultRootQuat;
+    // SuperMimic: independent source-clock buffer and YAML-owned joint parameters.
+    extern OnnxCtx mMimicJakaMiniSuperZmqPolicy;
+    extern bool mJakaMiniSuperZmqEnabled;
+    extern std::string mJakaMiniSuperZmqConnect;
+    extern int mJakaMiniSuperZmqHwm;
+    extern double mJakaMiniSuperZmqDt;
+    extern double mJakaMiniSuperZmqTolerance;
+    extern std::vector<int> mJakaMiniSuperZmqFutureSteps;
+    extern Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
+    extern Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos;
+    extern Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat;
+    extern MotionTimingConfig mJakaMiniSuperZmqTiming;
+    extern double mJakaMiniSuperZmqRootHeightOffset;
+    extern std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
+
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序)
     extern std::string mStateZmqBind;
     extern double mActionScale;

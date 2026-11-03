@@ -10,10 +10,55 @@
 #include <sstream>
 #include <set>
 #include <cctype>
+#include <cmath>
+#include <stdexcept>
 #include "RLController.hpp"
 
 namespace RLController
 {
+    namespace
+    {
+        void validate_motion_sampling(double dt, double tolerance, const std::vector<int> &steps)
+        {
+            // Bound before the FSM converts seconds to int64 nanoseconds.
+            if (!std::isfinite(dt) || dt <= 0 || dt > 1 ||
+                !std::isfinite(tolerance) || tolerance < 0 || tolerance > 60 || steps.size() != 5)
+                throw std::runtime_error("Invalid motion dt/tolerance/future_steps");
+            for (size_t i = 0; i < steps.size(); ++i)
+                if (steps[i] < -10000 || steps[i] > 10000 || (i && steps[i] <= steps[i - 1]))
+                    throw std::runtime_error("Invalid motion future_steps range/order");
+        }
+
+        MotionTimingConfig load_motion_timing(const YAML::Node &config)
+        {
+            MotionTimingConfig result;
+            const auto clock = config["clock"];
+            if (!clock) return result;
+            const std::string mode = clock["timestamp_mode"] ? clock["timestamp_mode"].as<std::string>() : "source";
+            if (mode == "source") result.timestamp_mode = MotionTimingConfig::TimestampMode::Source;
+            else if (mode == "publish") result.timestamp_mode = MotionTimingConfig::TimestampMode::Publish;
+            else if (mode == "arrival") result.timestamp_mode = MotionTimingConfig::TimestampMode::Arrival;
+            else throw std::runtime_error("motion clock.timestamp_mode must be source, publish or arrival");
+            auto read_ns = [&](const char *key, int64_t fallback) {
+                if (!clock[key]) return fallback;
+                const double seconds = clock[key].as<double>();
+                if (!std::isfinite(seconds) || seconds < 0 || seconds > 3600)
+                    throw std::runtime_error(std::string("Invalid motion clock.") + key);
+                return static_cast<int64_t>(std::llround(seconds * 1.e9));
+            };
+            result.clock.warmup_ns = read_ns("warmup_s", result.clock.warmup_ns);
+            result.clock.window_ns = read_ns("statistics_window_s", result.clock.window_ns);
+            if (clock["min_samples"]) result.clock.min_samples = clock["min_samples"].as<size_t>();
+            if (clock["quantile"]) result.clock.quantile = clock["quantile"].as<double>();
+            if (clock["max_slew"]) result.clock.max_slew = clock["max_slew"].as<double>();
+            result.stale_timeout_ns = read_ns("stale_timeout_s", result.stale_timeout_ns);
+            result.reset_gap_ns = read_ns("reset_gap_s", result.reset_gap_ns);
+            result.discontinuity_ns = read_ns("discontinuity_s", result.discontinuity_ns);
+            // Validate mapper parameters during config loading, before starting a thread.
+            SourceTimeline validate(result.clock);
+            return result;
+        }
+    }
     // global vars definition
     std::unique_ptr<legged_waist_controller::RobotIntf> mRobot;
     trajectory_msgs::msg::JointTrajectoryPoint mPt;
@@ -75,6 +120,20 @@ namespace RLController
     Eigen::VectorXf mJakaMiniZmqFixwristDefaultJointPos;
     Eigen::Vector3f mJakaMiniZmqFixwristDefaultRootPos = Eigen::Vector3f::Zero();
     Eigen::Quaternionf mJakaMiniZmqFixwristDefaultRootQuat = Eigen::Quaternionf::Identity();
+
+    OnnxCtx mMimicJakaMiniSuperZmqPolicy;
+    bool mJakaMiniSuperZmqEnabled = false;
+    std::string mJakaMiniSuperZmqConnect = "tcp://10.5.5.120:28701";
+    int mJakaMiniSuperZmqHwm = 1;
+    double mJakaMiniSuperZmqDt = 0.02;
+    double mJakaMiniSuperZmqTolerance = 0.04;
+    std::vector<int> mJakaMiniSuperZmqFutureSteps;
+    Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
+    Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos(0.0f, 0.0f, 0.65f);
+    Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat = Eigen::Quaternionf::Identity();
+    MotionTimingConfig mJakaMiniSuperZmqTiming;
+    double mJakaMiniSuperZmqRootHeightOffset = 0.05;
+    std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
 
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序, 控制 tick 内非阻塞)
     std::string mStateZmqBind = "tcp://*:28711";
@@ -459,6 +518,78 @@ namespace RLController
                         mJakaMiniZmqFixwristConnect.c_str(), mJakaMiniZmqFixwristDt, mJakaMiniZmqFixwristTolerance);
         }
 
+        /********************* Khan SuperMimic real config **********************/
+        if (mYamlNode["jakaminimimic_superzmq"])
+        {
+            const YAML::Node cfg = mYamlNode["jakaminimimic_superzmq"];
+            // Real hardware gains/defaults always remain those read above from
+            // YAML. No metadata override of mKp/mKd/mKp_PR/mKd_PR/mInitTarget.
+            const auto require_vector = [](const std::vector<double> &values, size_t size,
+                                           const char *field, bool nonnegative) {
+                if (values.size() != size || !std::all_of(values.begin(), values.end(),
+                    [nonnegative](double value) { return std::isfinite(value) && (!nonnegative || value >= 0); }))
+                    throw std::runtime_error(std::string("Invalid real YAML ") + field);
+            };
+            if (mNumAction != 27 || !std::isfinite(mTimeStep) || std::abs(mTimeStep-.02) > 1.e-9)
+                throw std::runtime_error("SuperMimic requires 27 joints and YAML pln_Ts=0.02");
+            require_vector(mKp,27,"kp",true);
+            require_vector(mKd,27,"kd",true);
+            require_vector(mKp_PR,4,"kp_pitch_roll",true);
+            require_vector(mKd_PR,4,"kd_pitch_roll",true);
+            require_vector(mInitTarget,27,"init_target",false);
+            require_vector(mUpLmt,27,"up_limit",false);
+            require_vector(mDownLmt,27,"down_limit",false);
+            for (int i=0;i<27;++i)
+                if (mDownLmt[i]>mUpLmt[i]) throw std::runtime_error("Real YAML joint limits are reversed");
+
+            mJakaMiniSuperZmqConnect=cfg["zmq_connect"].as<std::string>(mJakaMiniSuperZmqConnect);
+            mJakaMiniSuperZmqHwm=cfg["zmq_hwm"].as<int>(1);
+            mJakaMiniSuperZmqDt=cfg["dt_s"].as<double>(.02);
+            mJakaMiniSuperZmqTolerance=cfg["tolerance_s"].as<double>(.04);
+            mJakaMiniSuperZmqFutureSteps=cfg["future_steps"].as<std::vector<int>>(std::vector<int>{0,1,2,3,4});
+            validate_motion_sampling(mJakaMiniSuperZmqDt,mJakaMiniSuperZmqTolerance,mJakaMiniSuperZmqFutureSteps);
+            if (std::abs(mJakaMiniSuperZmqDt-.02)>1.e-9 ||
+                mJakaMiniSuperZmqFutureSteps!=std::vector<int>({0,1,2,3,4}) || mJakaMiniSuperZmqHwm<1)
+                throw std::runtime_error("SuperMimic requires dt_s=.02, future_steps=[0,1,2,3,4], positive HWM");
+            if (cfg["reference_body_index"] && cfg["reference_body_index"].as<int>()!=0)
+                throw std::runtime_error("SuperMimic reference is fixed to base_link index 0");
+            mJakaMiniSuperZmqTiming=load_motion_timing(cfg);
+            if (mJakaMiniSuperZmqTiming.stale_timeout_ns<=0 || mJakaMiniSuperZmqTiming.reset_gap_ns<=0 ||
+                mJakaMiniSuperZmqTiming.discontinuity_ns<=0)
+                throw std::runtime_error("SuperMimic clock timeouts must be positive");
+            mJakaMiniSuperZmqRootHeightOffset=cfg["reference_height_offset"].as<double>(.05);
+            if (!std::isfinite(mJakaMiniSuperZmqRootHeightOffset)||std::abs(mJakaMiniSuperZmqRootHeightOffset)>1)
+                throw std::runtime_error("Invalid SuperMimic reference height offset");
+            if (cfg["default_root_pos"])
+            {
+                const auto pos=cfg["default_root_pos"].as<std::vector<float>>();
+                if(pos.size()!=3)throw std::runtime_error("SuperMimic default_root_pos must have 3 values");
+                mJakaMiniSuperZmqDefaultRootPos=Eigen::Vector3f(pos[0],pos[1],pos[2]);
+                if(!mJakaMiniSuperZmqDefaultRootPos.allFinite())throw std::runtime_error("Nonfinite default root position");
+            }
+            if (cfg["default_root_quat"])
+            {
+                const auto q=cfg["default_root_quat"].as<std::vector<float>>();
+                if(q.size()!=4)throw std::runtime_error("SuperMimic default_root_quat must have 4 values");
+                const Eigen::Quaternionf quat(q[0],q[1],q[2],q[3]);
+                if(!quat.coeffs().allFinite()||quat.norm()<1.e-6f)throw std::runtime_error("Invalid default root quaternion");
+                mJakaMiniSuperZmqDefaultRootQuat=quat.normalized();
+            }
+            std::string model=cfg["policy_path"].as<std::string>();
+            if(model.empty())throw std::runtime_error("SuperMimic policy_path is empty");
+            if(model.front()!='/')model="./config/"+model;
+            OnnxCtxInit(&mMimicJakaMiniSuperZmqPolicy,model.c_str());
+            mJakaMiniSuperDeployment=std::make_unique<SuperMimicDeployment>(
+                *mMimicJakaMiniSuperZmqPolicy.session,cfg,mJointNames,mDefaultPos,mActionScale);
+            mJakaMiniSuperZmqDefaultJointPos=mJakaMiniSuperDeployment->buffer_default_joint_pos();
+            mMimicJakaMiniSuperZmqPolicy.session->Run(
+                Ort::RunOptions(nullptr),&mMimicJakaMiniSuperZmqPolicy.input_name,
+                mMimicJakaMiniSuperZmqPolicy.input_tensor,1,&mMimicJakaMiniSuperZmqPolicy.output_name,
+                mMimicJakaMiniSuperZmqPolicy.output_tensor,1);
+            mJakaMiniSuperZmqEnabled=true;
+            std::printf("[SuperMimic real] 620 -> 27 actor loaded; joint parameters and hardware PD from YAML, no metadata override\n");
+        }
+
         mPt.positions.resize(mNumAction);
 
         /*************************************************************/
@@ -490,20 +621,28 @@ namespace RLController
         }
         else
         {
-            mUpLmt[4] = 0.61;
-            mUpLmt[5] = 0.35;
-            mUpLmt[16] = 0.61;
-            mUpLmt[17] = 0.35;
-
-            mDownLmt[4] = -0.52;
-            mDownLmt[5] = -0.35;
-            mDownLmt[16] = -0.52;
-            mDownLmt[17] = -0.35;
+            const auto lower=mYamlNode["pitch_roll_down_limit"].as<std::vector<double>>(
+                std::vector<double>{-.52,-.35,-.52,-.35});
+            const auto upper=mYamlNode["pitch_roll_up_limit"].as<std::vector<double>>(
+                std::vector<double>{.61,.35,.61,.35});
+            if(lower.size()!=4||upper.size()!=4)
+                throw std::runtime_error("Physical PR limits must contain four values");
+            const int indices[4]={4,5,16,17};
+            for(int i=0;i<4;++i)
+            {
+                if(!std::isfinite(lower[i])||!std::isfinite(upper[i])||lower[i]>upper[i])
+                    throw std::runtime_error("Invalid physical PR YAML limits");
+                mDownLmt[indices[i]]=lower[i];
+                mUpLmt[indices[i]]=upper[i];
+            }
         }
     }
 
     void KpiConfigDeinit()
     {
+        mJakaMiniSuperDeployment.reset();
+        OnnxCtxDeinit(&mMimicJakaMiniSuperZmqPolicy);
+        mJakaMiniSuperZmqEnabled=false;
         OnnxCtxDeinit(&mLocoPolicy);
         if (mMimicPolicy.session)
         {

@@ -9,6 +9,9 @@
 有关接口架构、生命周期、数据流、API 调用映射和运行时要求，请参阅
 [RobotIntf 集成说明](docs/robot_intf_integration.zh-CN.md)。
 
+Khan SuperMimic 的 YAML 参数来源、LB+B 进入/退出、时间缓冲及离线验证见
+[SuperMimic 实机迁移说明](docs/supermimic_deployment.zh-CN.md)。
+
 ## 部署与运行
 
 以下命令中的 `<控制器用户名>` 和 `<控制器 IP>` 需要替换为实际值。

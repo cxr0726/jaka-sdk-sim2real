@@ -14,6 +14,7 @@ namespace RLController
     static double target[50], q_cmd[50], q[50], qd[50];
     static legged_waist_controller::RobotIntf::JoyRobotState joydata;
     static bool enable_robot;
+    static bool super_combo_armed;
     static legged_waist_controller::RobotIntf::ControlSource ctrl_source;
 
     static void from_fsm_idle();
@@ -22,10 +23,24 @@ namespace RLController
     {
         // RobotIntf owns control-source switching and the watchdog-protected Joy cache.
         ctrl_source=mRobot->get_control_source();
+        bool joy_read = false;
         if(ctrl_source==legged_waist_controller::RobotIntf::ControlSource::JOY)
         {
-            mRobot->get_joy_robot_state(joydata);
+            joy_read = mRobot->get_joy_robot_state(joydata);
         }
+
+        // LB+B also returns the older MIMIC mode to IDLE. Require a release
+        // after IDLE entry and then a new press, so that held return gesture
+        // cannot immediately start SuperMimic. Consume one attempt per press.
+        const bool joy_online =
+            ctrl_source == legged_waist_controller::RobotIntf::ControlSource::JOY &&
+            joy_read && joydata.joy_online;
+        const bool super_combo = joy_online && joydata.joy.buttons_LB && joydata.joy.buttons_B;
+        const bool super_pressed = super_combo && super_combo_armed;
+        if (!joy_online || super_pressed)
+            super_combo_armed = false;
+        else if (!super_combo)
+            super_combo_armed = true;
 
         if (mErrCode != ERR_NONE)
         {
@@ -50,6 +65,15 @@ namespace RLController
                 else if (mJakaMiniZmqFixwristEnabled && joydata.joy.buttons_LB && joydata.joy.buttons_BACK)
                 {
                     ReqState = FSM_JAKAMINIMIMIC_ZMQ_FIXWRIST;
+                }
+                else if (mJakaMiniSuperZmqEnabled && super_pressed && !joydata.joy.buttons_A)
+                {
+                    // SuperMimic entry checks feedback/IMU again before use.
+                    // Never enable joints implicitly as part of mode selection.
+                    if (mDataReadyFlag && mEnabledJointCount == mNumAction && mFaultJointCount == 0)
+                        ReqState = FSM_JAKAMINIMIMIC_SUPERZMQ;
+                    else
+                        printf("[SuperMimic] entry ignored: enable all joints and clear faults, then press LB+B again\n");
                 }
             }
         }
@@ -149,6 +173,7 @@ namespace RLController
         bind_data = false;
         go_target = false;
         enable_robot = false;
+        super_combo_armed = false;
         // Keep RobotIntf/PiState synchronized with the local FSM.
         mRobot->set_cur_control_stat(FSM_IDLE);
         joydata = legged_waist_controller::RobotIntf::JoyRobotState{};
@@ -172,6 +197,8 @@ namespace RLController
             break;
         case FSM_JAKAMINIMIMIC_ZMQ_FIXWRIST:
             break;
+        case FSM_JAKAMINIMIMIC_SUPERZMQ:
+            break;
         default:
             mErrCode = ERR_STATE_TRANSITION;
             break;
@@ -193,6 +220,9 @@ namespace RLController
             break;
         case FSM_JAKAMINIMIMIC_ZMQ_FIXWRIST:
             FSMMimicJakaMiniZmqFixwristEnter(FSM_IDLE);
+            break;
+        case FSM_JAKAMINIMIMIC_SUPERZMQ:
+            FSMMimicJakaMiniSuperZmqEnter(FSM_IDLE);
             break;
         case FSM_FAULT:
             FSMFaultEnter(FSM_IDLE);

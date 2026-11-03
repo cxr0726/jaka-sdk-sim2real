@@ -1,0 +1,109 @@
+{
+  "date": "2026-11-03",
+  "baseline_commit": "eefd5ed",
+  "model_sha256": "67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b",
+  "parameter_source": "YAML only; no runtime ONNX metadata parameter reads",
+  "ctest": {
+    "passed": 6,
+    "failed": 0
+  },
+  "offline_actual_fsm": {
+    "checked_steps": 1600,
+    "reset_count": 2,
+    "max_errors": {
+      "observation_total": 6.034970283508301e-07,
+      "observation/reference_root_displacement_b": 7.450580596923828e-09,
+      "observation/reference_world_z": 0.0,
+      "observation/reference_joint_pos": 0.0,
+      "observation/motion_anchor_ori_b": 6.034970283508301e-07,
+      "observation/projected_gravity": 1.6391277313232422e-07,
+      "observation/base_ang_vel": 0.0,
+      "observation/joint_pos": 1.1920928955078125e-07,
+      "observation/joint_vel": 4.76837158203125e-07,
+      "observation/actions": 0.0,
+      "actions_ort_vs_cpp_same_input": 0.0,
+      "targets_scatter_and_real_yaml_limits_vs_cpp": 0.0,
+      "actions_torch_vs_cpp_same_input": 4.291534423828125e-06,
+      "actions_torch_vs_ort_same_input": 4.291534423828125e-06
+    },
+    "clipped_target_components": 550
+  },
+  "hardware_pd": {
+    "kp": [
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100
+    ],
+    "kd": [
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      200,
+      200,
+      200,
+      200,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      200,
+      200,
+      200,
+      200,
+      100,
+      200,
+      200
+    ],
+    "kp_pitch_roll": [
+      100,
+      50,
+      100,
+      50
+    ],
+    "kd_pitch_roll": [
+      2.0,
+      0.5,
+      2.0,
+      0.5
+    ]
+  },
+  "hardware_control_executed": false,
+  "notes": [
+    "Full executable linked against actual bundled RobotIntf; it was never run.",
+    "Host std_srvs dependency downloaded from configured signed official ROS repository and extracted only under /tmp for validation.",
+    "Offline checks replay supplied sensors/references; no physical closed-loop performance claim."
+  ]
+}

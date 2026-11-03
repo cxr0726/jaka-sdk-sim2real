@@ -92,6 +92,8 @@ namespace RLController
             break;
         case FSM_JAKAMINIMIMIC_ZMQ_FIXWRIST:
             break;
+        case FSM_JAKAMINIMIMIC_SUPERZMQ:
+            break;
         default:
             mErrCode = ERR_STATE_TRANSITION;
             break;
