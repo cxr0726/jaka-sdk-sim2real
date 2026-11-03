@@ -68,7 +68,12 @@ def compare(sim,real,config,tolerance):
                 len(row['targets_deploy'])!=27 or len(row['frames'])!=5):
                 raise ValueError(f'Invalid observation/action/reference dimensions at {step}')
         if bool(a['reset_history'])!=bool(b['reset_history']):raise ValueError(f'reset mismatch at {step}')
-        if a['generation']!=b['generation'] or a['status']!=b['status']:raise ValueError(f'status/generation mismatch at {step}')
+        # Different receiver implementations do not share stream-generation
+        # semantics. Numeric parity still requires identical explicit history
+        # resets, supplied frames and alignment (checked below).
+        if a.get('buffer_backend')==b.get('buffer_backend'):
+            if a['generation']!=b['generation'] or a['status']!=b['status']:
+                raise ValueError(f'status/generation mismatch at {step}')
         resets+=bool(a['reset_history']);statuses[a['status']]=statuses.get(a['status'],0)+1
         def measure(name,x,y):
             x,y=np.asarray(x,float),np.asarray(y,float)
@@ -98,7 +103,8 @@ def compare(sim,real,config,tolerance):
             'physical_target_clipped_components':int(clipped.sum()),
             'clipping_by_sdk_joint':{n:{'components':int(k),'max_clip_rad':float(v)} for n,k,v in zip(sdk,clipped,clip_max) if k},
             'policy_to_sdk_by_independent_name_match':permutation.tolist(),'failures':failures,
-            'sim_tape':str(Path(sim).resolve()),'real_tape':str(Path(real).resolve())}
+            'sim_tape':str(Path(sim).resolve()),'real_tape':str(Path(real).resolve()),
+            'scope':'same supplied frames/state/history contract; different receiver timeline metadata is not compared'}
 
 
 def main():

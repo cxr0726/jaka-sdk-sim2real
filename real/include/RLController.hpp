@@ -9,7 +9,6 @@
 #include <eigen3/Eigen/Dense>
 #include "robot_intf.hpp"
 #include "RealtimeMotionBuffer.hpp"
-#include "SuperRealtimeMotionBuffer.hpp"
 #include "SuperMimicDeployment.hpp"
 
 namespace RLController
@@ -139,7 +138,7 @@ namespace RLController
     extern Eigen::VectorXf mJakaMiniZmqFixwristDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniZmqFixwristDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniZmqFixwristDefaultRootQuat;
-    // SuperMimic: independent source-clock buffer and YAML-owned joint parameters.
+    // SuperMimic: original real motion buffer and YAML-owned joint parameters.
     extern OnnxCtx mMimicJakaMiniSuperZmqPolicy;
     extern bool mJakaMiniSuperZmqEnabled;
     extern std::string mJakaMiniSuperZmqConnect;
@@ -150,8 +149,6 @@ namespace RLController
     extern Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat;
-    extern MotionTimingConfig mJakaMiniSuperZmqTiming;
-    extern double mJakaMiniSuperZmqRootHeightOffset;
     extern std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
 
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序)

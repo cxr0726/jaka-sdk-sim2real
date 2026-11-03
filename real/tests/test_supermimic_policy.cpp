@@ -135,15 +135,9 @@ namespace
         check(old_target==mPt.positions&&old_action==zmq_last_action,"nonfinite action partially committed targets/history");
     }
 
-    MotionWindow read_window(const nlohmann::json &row)
+    std::array<InterpolatedFrame,5> read_frames(const nlohmann::json &row)
     {
-        MotionWindow window;
-        window.query_steady_ns=row.at("query_steady_ns").get<int64_t>();
-        window.generation=row.at("generation").get<uint64_t>();
-        const auto status=row.at("status").get<std::string>();
-        if(status=="tracking")window.status=MotionWindow::Status::Tracking;
-        else if(status=="underrun")window.status=MotionWindow::Status::Underrun;
-        else if(status=="stale")window.status=MotionWindow::Status::Stale;
+        std::array<InterpolatedFrame,5> frames;
         for(int f=0;f<5;++f)
         {
             const auto &source=row.at("frames").at(f);
@@ -151,18 +145,18 @@ namespace
             const auto quat=source.at("root_quat").get<std::vector<float>>();
             const auto q=source.at("joint_pos_buffer").get<std::vector<float>>();
             check(pos.size()==3&&quat.size()==4&&q.size()==27,"invalid replay reference shape");
-            window.frames[f].root_pos_w={pos[0],pos[1],pos[2]};
-            window.frames[f].root_quat_w={quat[0],quat[1],quat[2],quat[3]};
-            window.frames[f].dof_pos=Eigen::Map<const Eigen::VectorXf>(q.data(),27);
+            frames[f].root_pos_w={pos[0],pos[1],pos[2]};
+            frames[f].root_quat_w={quat[0],quat[1],quat[2],quat[3]};
+            frames[f].dof_pos=Eigen::Map<const Eigen::VectorXf>(q.data(),27);
         }
-        return window;
+        return frames;
     }
 
     void replay_tape(const char *input,const char *output,size_t maximum)
     {
         std::ifstream in(input);check(static_cast<bool>(in),"cannot open source parity tape");
         zmq_policy_diagnostic.open(output);check(static_cast<bool>(zmq_policy_diagnostic),"cannot open real parity tape");
-        zmq_timing_step_count=0;zmq_obs_history.clear();
+        zmq_timing_step_count=0;zmq_obs_history.clear();bool last_ready=false;
         std::string line;
         while(zmq_timing_step_count<maximum&&std::getline(in,line))
         {
@@ -174,21 +168,30 @@ namespace
             check(q.size()==27&&qd.size()==27&&omega.size()==3&&quat.size()==4,"invalid replay state shape");
             std::copy(q.begin(),q.end(),zmq_q);std::copy(qd.begin(),qd.end(),zmq_qd);
             std::copy(omega.begin(),omega.end(),zmq_omega);std::copy(quat.begin(),quat.end(),zmq_quat);
-            const auto window=read_window(row);
-            const bool reset=row.at("reset_history").get<bool>();
-            check(zmq_timing_step_count>0||reset,"replay must begin at a history reset");
+            const auto frames=read_frames(row);
+            check(row.value("buffer_backend",std::string{})=="legacy_arrival",
+                "current real replay requires a legacy_arrival tape; source-buffer status cannot recover legacy first-packet timing");
+            check(row.contains("reference_ready")&&row.at("reference_ready").is_boolean(),
+                "legacy replay requires boolean reference_ready");
+            const bool ready=row.at("reference_ready").get<bool>();
+            check(!last_ready||ready,"legacy readiness cannot become false after the first valid packet");
+            // Replay the CURRENT legacy FSM contract: only entry resets history;
+            // first received motion separately realigns yaw and retains actions.
+            const bool reset=zmq_timing_step_count==0;
+            const bool align=reset||(!last_ready&&ready);
+            if(align)zmq_initialize_alignment(frames[0]);
             if(reset)
             {
-                zmq_initialize_alignment(window.frames[0]);
                 zmq_initialize_last_action();zmq_construct_single_obs();zmq_init_history();
             }
             else {zmq_construct_single_obs();zmq_push_history();}
-            zmq_pack_history(window.frames);
+            zmq_pack_history(frames);
             mMimicJakaMiniSuperZmqPolicy.session->Run(Ort::RunOptions(nullptr),
                 &mMimicJakaMiniSuperZmqPolicy.input_name,mMimicJakaMiniSuperZmqPolicy.input_tensor,1,
                 &mMimicJakaMiniSuperZmqPolicy.output_name,mMimicJakaMiniSuperZmqPolicy.output_tensor,1);
             check(zmq_fill_trajectory(),"offline inference produced invalid targets");
-            zmq_write_policy_diagnostic(window,reset);
+            zmq_write_policy_diagnostic(frames,reset,ready,align);
+            last_ready=ready;
             ++zmq_timing_step_count;
         }
         check(zmq_timing_step_count>0,"empty parity replay");

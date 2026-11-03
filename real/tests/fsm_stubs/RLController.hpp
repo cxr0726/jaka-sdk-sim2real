@@ -11,7 +11,7 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include "rclcpp/rclcpp.hpp"
-#include "SuperRealtimeMotionBuffer.hpp"
+#include "RealtimeMotionBuffer.hpp"
 #include "ParKine.hpp"
 
 namespace Ort {struct RunOptions {explicit RunOptions(std::nullptr_t){}};}
@@ -97,12 +97,11 @@ namespace RLController
     extern std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
     extern std::string mJakaMiniSuperZmqConnect,mStateZmqBind;
     extern int mJakaMiniSuperZmqHwm;
-    extern double mJakaMiniSuperZmqDt,mJakaMiniSuperZmqTolerance,mJakaMiniSuperZmqRootHeightOffset;
+    extern double mJakaMiniSuperZmqDt,mJakaMiniSuperZmqTolerance;
     extern std::vector<int> mJakaMiniSuperZmqFutureSteps;
     extern Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat;
-    extern MotionTimingConfig mJakaMiniSuperZmqTiming;
     extern fsm_func_ptr StateJudge,StateRun;
     extern FSMSTATE ReqState;
     void FSMUpdate();

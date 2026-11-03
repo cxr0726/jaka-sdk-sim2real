@@ -105,25 +105,22 @@ if(BUILD_TESTING)
   set_tests_properties(real_supermimic_yaml_contract PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
   add_executable(RealSuperMimicSafetyTest tests/test_supermimic_safety.cpp
-    src/SuperMimicSafety.cpp src/ParallelAnkleSolver.cpp)
+    src/SuperMimicSafety.cpp)
   target_include_directories(RealSuperMimicSafetyTest BEFORE PRIVATE tests/stubs include)
-  add_test(NAME real_supermimic_ankle_safety COMMAND RealSuperMimicSafetyTest)
+  add_test(NAME real_supermimic_fault_latch COMMAND RealSuperMimicSafetyTest)
 
-  add_executable(RealSourceTimelineTest tests/test_source_timeline.cpp)
-  target_include_directories(RealSourceTimelineTest PRIVATE include)
-  add_test(NAME real_supermimic_source_timeline COMMAND RealSourceTimelineTest)
-
-  add_executable(RealSuperMotionBufferTest
-    tests/test_super_realtime_motion_buffer.cpp src/SuperRealtimeMotionBuffer.cpp)
-  target_include_directories(RealSuperMotionBufferTest PRIVATE include ext_libs ext_libs/zmq/include)
-  target_link_libraries(RealSuperMotionBufferTest PRIVATE Eigen3::Eigen Threads::Threads
+  # Original real ZMQ receiver: actual legacy parser/interpolation, no sockets.
+  add_executable(RealLegacyMotionBufferTest
+    tests/test_legacy_realtime_motion_buffer.cpp src/RealtimeMotionBuffer.cpp)
+  target_include_directories(RealLegacyMotionBufferTest PRIVATE include ext_libs ext_libs/zmq/include)
+  target_link_libraries(RealLegacyMotionBufferTest PRIVATE Eigen3::Eigen Threads::Threads
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime_lib/libzmq.so")
-  add_test(NAME real_supermimic_motion_buffer COMMAND RealSuperMotionBufferTest)
+  add_test(NAME real_supermimic_legacy_motion_buffer COMMAND RealLegacyMotionBufferTest)
 
   add_executable(RealSuperMimicPolicyTest tests/test_supermimic_policy.cpp
     src/GlobalVars.cpp src/Util.cpp src/ParKine.cpp src/FSM.cpp
-    src/SuperMimicDeployment.cpp src/SuperMimicSafety.cpp src/ParallelAnkleSolver.cpp
-    src/SuperRealtimeMotionBuffer.cpp src/StatePublisher.cpp)
+    src/SuperMimicDeployment.cpp src/SuperMimicSafety.cpp
+    src/RealtimeMotionBuffer.cpp src/StatePublisher.cpp)
   target_include_directories(RealSuperMimicPolicyTest PRIVATE include
     ${_kpi_lwc_include}/legged_waist_controller ${_kpi_lwc_include}/rt_thread
     ext_libs/onnxruntime-linux-x64-1.24.4/include ext_libs/zmq/include ext_libs)
@@ -154,10 +151,11 @@ if(BUILD_TESTING)
   # Actual FSM/IDLE/FSMUpdate code with deterministic fake I/O and inference.
   # This target links no RobotIntf, ROS, ONNX Runtime or ZMQ implementation.
   add_executable(RealSuperMimicFsmTest tests/test_supermimic_fsm.cpp
-    src/SuperMimicSafety.cpp src/ParallelAnkleSolver.cpp)
+    src/SuperMimicSafety.cpp src/ParKine.cpp)
   target_include_directories(RealSuperMimicFsmTest BEFORE PRIVATE
     tests/fsm_stubs include ext_libs)
   target_link_libraries(RealSuperMimicFsmTest PRIVATE Eigen3::Eigen)
+  target_link_options(RealSuperMimicFsmTest PRIVATE "LINKER:--wrap=AB2PitchRoll")
   add_test(NAME real_supermimic_fsm_fault_paths COMMAND RealSuperMimicFsmTest)
 endif()
 

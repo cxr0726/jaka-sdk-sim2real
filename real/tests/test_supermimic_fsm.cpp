@@ -10,6 +10,25 @@
 #include <limits>
 #include <stdexcept>
 
+// GNU link wrapping preserves the actual legacy ParKine implementation while
+// allowing a deterministic negative-return injection at its public C ABI.
+extern "C" int __real_AB2PitchRoll(double,double,double,double,double*,double*,double*,double*,double[2][2]);
+namespace legacy_ankle_test
+{
+    struct Call { double a,b,da,db; };
+    std::vector<Call> calls;
+    int fail_call = -1;
+}
+extern "C" int __wrap_AB2PitchRoll(double a,double b,double da,double db,
+    double *p,double *r,double *dp,double *dr,double J[2][2])
+{
+    const int index=static_cast<int>(legacy_ankle_test::calls.size());
+    legacy_ankle_test::calls.push_back({a,b,da,db});
+    if(index==legacy_ankle_test::fail_call)
+    { *p=9.;*r=8.;*dp=7.;*dr=6.;return -1; }
+    return __real_AB2PitchRoll(a,b,da,db,p,r,dp,dr,J);
+}
+
 #include "../src/FSM.cpp"
 #include "../src/FSMMimicJakaMiniSuperZmq.cpp"
 #include "../src/FSMIdle.cpp"
@@ -31,12 +50,11 @@ namespace RLController
     std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
     std::string mJakaMiniSuperZmqConnect,mStateZmqBind;
     int mJakaMiniSuperZmqHwm=1;
-    double mJakaMiniSuperZmqDt=.02,mJakaMiniSuperZmqTolerance=.04,mJakaMiniSuperZmqRootHeightOffset=.05;
+    double mJakaMiniSuperZmqDt=.02,mJakaMiniSuperZmqTolerance=.04;
     std::vector<int> mJakaMiniSuperZmqFutureSteps={0,1,2,3,4};
     Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos=Eigen::VectorXf::Zero(27);
     Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos{0,0,.65f};
     Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat=Eigen::Quaternionf::Identity();
-    MotionTimingConfig mJakaMiniSuperZmqTiming;
 
     void no_op(){}
     void FSMFaultEnter(FSMSTATE)
@@ -96,10 +114,13 @@ namespace
         actor=FakeSession{};input.fill(0);output.fill(0);actor.output=output.data();
         mMimicJakaMiniSuperZmqPolicy=OnnxCtx{};mMimicJakaMiniSuperZmqPolicy.session=&actor;
         mMimicJakaMiniSuperZmqPolicy.input_buffer=input.data();mMimicJakaMiniSuperZmqPolicy.output_buffer=output.data();
-        SuperRealtimeMotionBuffer::fail_construct=SuperRealtimeMotionBuffer::fail_query=false;
-        SuperRealtimeMotionBuffer::next=MotionWindow{};
+        RealtimeMotionBuffer::fail_construct=RealtimeMotionBuffer::fail_query=false;
+        RealtimeMotionBuffer::next_ready=false;
+        RealtimeMotionBuffer::ready_calls=RealtimeMotionBuffer::query_calls=0;
+        RealtimeMotionBuffer::next={};
+        legacy_ankle_test::calls.clear();legacy_ankle_test::fail_call=-1;
         StatePublisher::fail_construct=false;StatePublisher::calls=0;
-        reset_super_parallel_ankles();FSMIdleEnter(FSM_INIT);
+        FSMIdleEnter(FSM_INIT);
     }
 
     void chord(bool lb,bool b,bool a=false)
@@ -176,9 +197,8 @@ namespace
         no_command_fault([]{mRobot->imu_ok=false;},"missing IMU not rejected");
         no_command_fault([]{mRobot->imu.qw=0;},"zero quaternion not rejected");
         no_command_fault([]{mRobot->imu.wx=std::numeric_limits<double>::quiet_NaN();},"NaN IMU not rejected");
-        no_command_fault([]{mRobot->joints[16].pos_fdb=-1.5;mRobot->joints[17].pos_fdb=-1.5;},"finite unsolvable ankle not rejected");
-        no_command_fault([]{SuperRealtimeMotionBuffer::fail_query=true;},"motion-window exception not rejected");
-        no_command_fault([]{SuperRealtimeMotionBuffer::next.frames[2].dof_pos[6]=std::numeric_limits<float>::quiet_NaN();},"NaN observation not rejected");
+        no_command_fault([]{RealtimeMotionBuffer::fail_query=true;},"motion-window exception not rejected");
+        no_command_fault([]{RealtimeMotionBuffer::next[2].dof_pos[6]=std::numeric_limits<float>::quiet_NaN();},"NaN observation not rejected");
         no_command_fault([]{actor.fail=true;},"inference exception not rejected");
         no_command_fault([]{actor.action[12]=std::numeric_limits<float>::quiet_NaN();},"NaN action not rejected");
         no_command_fault([]{mAngleMapFlag=1;},"changed angle_map still issued a target");
@@ -225,7 +245,7 @@ namespace
             if(invalid==0)mAngleMapFlag=1;
             if(invalid==1)mMimicJakaMiniSuperZmqPolicy.input_shape[1]=619;
             if(invalid==2)mRobot->imu_ok=false;
-            if(invalid==3)SuperRealtimeMotionBuffer::fail_construct=true;
+            if(invalid==3)RealtimeMotionBuffer::fail_construct=true;
             if(invalid==4)StatePublisher::fail_construct=true;
             chord(true,true);FSMUpdate();
             require(mErrCode!=ERR_NONE&&mRobot->enable_off>0,"entry failure omitted same-tick stop");
@@ -233,37 +253,105 @@ namespace
         }
     }
 
+    void legacy_ankle_checks()
+    {
+        // The actual original AB2PitchRoll implementation is linked and called
+        // for healthy legs. Only the negative-return case is injected.
+        for(int failing_leg=-1;failing_leg<2;++failing_leg)
+        {
+            fixture();enter();
+            const double raw[4]={.13,-.08,-.11,.06};
+            const double velocity[4]={.2,-.3,.4,-.5};
+            const int indices[4]={4,5,16,17};
+            for(int i=0;i<4;++i)
+            {mRobot->joints[indices[i]].pos_fdb=raw[i];mRobot->joints[indices[i]].vel_fdb=velocity[i];}
+            double expected[2][4]{},J[2][2];
+            for(int leg=0;leg<2;++leg)
+            {
+                const double sign=leg==0?1.:-1.;
+                require(__real_AB2PitchRoll(sign*raw[2*leg],sign*raw[2*leg+1],
+                    sign*velocity[2*leg],sign*velocity[2*leg+1],
+                    &expected[leg][0],&expected[leg][1],&expected[leg][2],&expected[leg][3],J)>=0,
+                    "legacy healthy ankle fixture rejected");
+                if(leg==failing_leg)std::fill(std::begin(expected[leg]),std::end(expected[leg]),0.);
+            }
+            legacy_ankle_test::calls.clear();legacy_ankle_test::fail_call=failing_leg;
+            fsm_mimic_jaka_mini_superzmq_run();
+            require(legacy_ankle_test::calls.size()==2,"actual FSM did not call legacy AB C ABI twice");
+            for(int leg=0;leg<2;++leg)
+            {
+                const auto &call=legacy_ankle_test::calls[leg];const double sign=leg==0?1.:-1.;
+                require(call.a==sign*raw[2*leg]&&call.b==sign*raw[2*leg+1]&&
+                    call.da==sign*velocity[2*leg]&&call.db==sign*velocity[2*leg+1],
+                    "legacy left/right ankle input sign changed");
+                const int d=indices[2*leg];
+                require(std::abs(zmq_q[d]-expected[leg][0])<1.e-12&&
+                    std::abs(zmq_q[d+1]-expected[leg][1])<1.e-12&&
+                    std::abs(zmq_qd[d]-expected[leg][2])<1.e-12&&
+                    std::abs(zmq_qd[d+1]-expected[leg][3])<1.e-12,
+                    "legacy PR/velocity conversion or negative-return zero behavior changed");
+            }
+            require(mErrCode==ERR_NONE&&actor.calls==1&&mRobot->trajectory_accepted==1&&
+                mRobot->pd_off==0&&mRobot->enable_off==0,
+                "legacy negative ankle return must zero only that leg and continue policy");
+            ++cases;
+        }
+    }
+
     void reference_reset_checks()
     {
-        fixture();enter();actor.action.fill(.3f);fsm_mimic_jaka_mini_superzmq_run();
-        require(mErrCode==ERR_NONE&&mRobot->trajectory_accepted==1,"healthy buffering balance step failed");
-        for(int i=485;i<620;++i)require(input[i]==0,"entry history action not zero");
+        fixture();enter();actor.action.fill(.1f);fsm_mimic_jaka_mini_superzmq_run();
+        require(mErrCode==ERR_NONE&&mRobot->trajectory_accepted==1,"healthy empty-buffer balance step failed");
+        for(int i=485;i<620;++i)require(input[i]==0,"entry action history not zero");
+        require(!zmq_first_step&&!zmq_last_ready,"empty-buffer first tick latch wrong");++cases;
+        actor.action.fill(.2f);fsm_mimic_jaka_mini_superzmq_run();
+        for(int i=593;i<620;++i)require(std::abs(input[i]-.1f)<1.e-7,"continuation lost raw previous action");
         ++cases;
+        const auto old_history=zmq_obs_history;
+        RealtimeMotionBuffer::next_ready=true;
+        for(auto &frame:RealtimeMotionBuffer::next)
+        {
+            frame.root_quat_w=Eigen::Quaternionf(Eigen::AngleAxisf(.7f,Eigen::Vector3f::UnitZ()));
+            frame.root_pos_w.z()=.72f;
+        }
+        actor.action.fill(.3f);fsm_mimic_jaka_mini_superzmq_run();
+        require(zmq_last_ready,"first received legacy frame did not become ready immediately");
+        require(std::abs(zmq_align_quat.z()+std::sin(.35f))<1.e-6,"first ready did not realign yaw");
+        require(zmq_obs_history.size()==5,"first-ready history size changed");
+        for(int h=0;h<4;++h)require(zmq_obs_history[h]==old_history[h+1],"first ready discarded running sensor/action history");
+        for(int i=566;i<593;++i)require(std::abs(input[i]-.1f)<1.e-7,"first ready erased preceding action history");
+        for(int i=593;i<620;++i)require(std::abs(input[i]-.2f)<1.e-7,"first ready reset raw previous action");
+        require(std::abs(input[15]-.72f)<1.e-7,"first frame was delayed by an extra warmup");++cases;
+        const auto aligned=zmq_align_quat;
+        for(auto &frame:RealtimeMotionBuffer::next)
+            frame.root_quat_w=Eigen::Quaternionf(Eigen::AngleAxisf(1.1f,Eigen::Vector3f::UnitZ()));
         fsm_mimic_jaka_mini_superzmq_run();
-        for(int i=593;i<620;++i)require(std::abs(input[i]-.3f)<1.e-7,"continuation lost raw previous action");
-        ++cases;
-        auto &window=SuperRealtimeMotionBuffer::next;window.status=MotionWindow::Status::Tracking;window.generation=1;
-        for(auto &frame:window.frames)frame.root_quat_w=Eigen::Quaternionf(Eigen::AngleAxisf(.7f,Eigen::Vector3f::UnitZ()));
+        require(zmq_align_quat.coeffs()==aligned.coeffs(),"ready continuation repeatedly realigned yaw");
+        for(int i=593;i<620;++i)require(std::abs(input[i]-.3f)<1.e-7,"ready continuation lost raw action history");
+        require(RealtimeMotionBuffer::ready_calls==4&&RealtimeMotionBuffer::query_calls==4,
+            "actual FSM did not query original ready/get_obs API every tick");++cases;
+
+        // If the first frame is already present on the first policy tick,
+        // initialize once using that frame rather than requiring an extra tick.
+        fixture();enter();RealtimeMotionBuffer::next_ready=true;
+        for(auto &frame:RealtimeMotionBuffer::next)
+            frame.root_quat_w=Eigen::Quaternionf(Eigen::AngleAxisf(-.4f,Eigen::Vector3f::UnitZ()));
         fsm_mimic_jaka_mini_superzmq_run();
-        require(zmq_last_generation==1,"ready generation not consumed");
-        for(int i=485;i<620;++i)require(input[i]==0,"new ready generation failed to reset raw-action history");
-        require(std::abs(zmq_align_quat.z()+std::sin(.35f))<1.e-6,"new ready generation did not realign yaw");++cases;
-        window.status=MotionWindow::Status::Stale;window.generation=2;fsm_mimic_jaka_mini_superzmq_run();
-        require(zmq_last_generation==1,"unready generation reset tracking state");++cases;
-        window.status=MotionWindow::Status::Tracking;fsm_mimic_jaka_mini_superzmq_run();
-        require(zmq_last_generation==2,"next ready generation not consumed");
-        for(int i=485;i<620;++i)require(input[i]==0,"recovered generation failed history reset");
+        require(zmq_last_ready&&std::abs(zmq_align_quat.z()-std::sin(.2f))<1.e-6,
+            "first policy tick with ready frame failed initial yaw alignment");
+        for(int i=485;i<620;++i)require(input[i]==0,"first ready policy tick did not zero initial action history");
         ++cases;
     }
+
 }
 
 int main()
 {
     try
     {
-        transition_checks();fault_checks();reference_reset_checks();
+        transition_checks();fault_checks();legacy_ankle_checks();reference_reset_checks();
         zmq_motion_buffer.reset();zmq_state_pub.reset();mRobot.reset();
-        std::cout<<"Actual IDLE/SuperMimic FSM transition, fault and reference-reset cases passed: "<<cases<<"; fake I/O only\n";
+        std::cout<<"Actual IDLE/SuperMimic FSM transition, fault and legacy ankle/buffer cases passed: "<<cases<<"; fake I/O only\n";
         return 0;
     }
     catch(const std::exception &error)

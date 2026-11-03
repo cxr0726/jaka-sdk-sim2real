@@ -29,35 +29,6 @@ namespace RLController
                     throw std::runtime_error("Invalid motion future_steps range/order");
         }
 
-        MotionTimingConfig load_motion_timing(const YAML::Node &config)
-        {
-            MotionTimingConfig result;
-            const auto clock = config["clock"];
-            if (!clock) return result;
-            const std::string mode = clock["timestamp_mode"] ? clock["timestamp_mode"].as<std::string>() : "source";
-            if (mode == "source") result.timestamp_mode = MotionTimingConfig::TimestampMode::Source;
-            else if (mode == "publish") result.timestamp_mode = MotionTimingConfig::TimestampMode::Publish;
-            else if (mode == "arrival") result.timestamp_mode = MotionTimingConfig::TimestampMode::Arrival;
-            else throw std::runtime_error("motion clock.timestamp_mode must be source, publish or arrival");
-            auto read_ns = [&](const char *key, int64_t fallback) {
-                if (!clock[key]) return fallback;
-                const double seconds = clock[key].as<double>();
-                if (!std::isfinite(seconds) || seconds < 0 || seconds > 3600)
-                    throw std::runtime_error(std::string("Invalid motion clock.") + key);
-                return static_cast<int64_t>(std::llround(seconds * 1.e9));
-            };
-            result.clock.warmup_ns = read_ns("warmup_s", result.clock.warmup_ns);
-            result.clock.window_ns = read_ns("statistics_window_s", result.clock.window_ns);
-            if (clock["min_samples"]) result.clock.min_samples = clock["min_samples"].as<size_t>();
-            if (clock["quantile"]) result.clock.quantile = clock["quantile"].as<double>();
-            if (clock["max_slew"]) result.clock.max_slew = clock["max_slew"].as<double>();
-            result.stale_timeout_ns = read_ns("stale_timeout_s", result.stale_timeout_ns);
-            result.reset_gap_ns = read_ns("reset_gap_s", result.reset_gap_ns);
-            result.discontinuity_ns = read_ns("discontinuity_s", result.discontinuity_ns);
-            // Validate mapper parameters during config loading, before starting a thread.
-            SourceTimeline validate(result.clock);
-            return result;
-        }
     }
     // global vars definition
     std::unique_ptr<legged_waist_controller::RobotIntf> mRobot;
@@ -131,8 +102,6 @@ namespace RLController
     Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
     Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos(0.0f, 0.0f, 0.65f);
     Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat = Eigen::Quaternionf::Identity();
-    MotionTimingConfig mJakaMiniSuperZmqTiming;
-    double mJakaMiniSuperZmqRootHeightOffset = 0.05;
     std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
 
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序, 控制 tick 内非阻塞)
@@ -553,13 +522,6 @@ namespace RLController
                 throw std::runtime_error("SuperMimic requires dt_s=.02, future_steps=[0,1,2,3,4], positive HWM");
             if (cfg["reference_body_index"] && cfg["reference_body_index"].as<int>()!=0)
                 throw std::runtime_error("SuperMimic reference is fixed to base_link index 0");
-            mJakaMiniSuperZmqTiming=load_motion_timing(cfg);
-            if (mJakaMiniSuperZmqTiming.stale_timeout_ns<=0 || mJakaMiniSuperZmqTiming.reset_gap_ns<=0 ||
-                mJakaMiniSuperZmqTiming.discontinuity_ns<=0)
-                throw std::runtime_error("SuperMimic clock timeouts must be positive");
-            mJakaMiniSuperZmqRootHeightOffset=cfg["reference_height_offset"].as<double>(.05);
-            if (!std::isfinite(mJakaMiniSuperZmqRootHeightOffset)||std::abs(mJakaMiniSuperZmqRootHeightOffset)>1)
-                throw std::runtime_error("Invalid SuperMimic reference height offset");
             if (cfg["default_root_pos"])
             {
                 const auto pos=cfg["default_root_pos"].as<std::vector<float>>();

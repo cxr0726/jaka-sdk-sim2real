@@ -3,7 +3,7 @@
 // joint parameters and observation/action scales come from KpiConfig.yaml.
 #include "RLController.hpp"
 #include "StatePublisher.hpp"
-#include "SuperRealtimeMotionBuffer.hpp"
+#include "RealtimeMotionBuffer.hpp"
 #include "SuperMimicSafety.hpp"
 
 #include <algorithm>
@@ -65,8 +65,7 @@ namespace RLController
     static double zmq_omega[3], zmq_acc[3], zmq_quat[4];
     static bool zmq_exit_chord_released;
     static bool zmq_first_step;
-    static uint64_t zmq_last_generation;
-    static MotionWindow::Status zmq_last_buffer_status;
+    static bool zmq_last_ready;
     static int zmq_frame_stack;
     static Eigen::Quaternionf zmq_align_quat(1.0f, 0.0f, 0.0f, 0.0f);
     static std::vector<float> zmq_single_obs;
@@ -84,7 +83,7 @@ namespace RLController
     static double zmq_timing_action_max = 0.0;
     static double zmq_timing_total_max = 0.0;
 
-    static std::unique_ptr<SuperRealtimeMotionBuffer> zmq_motion_buffer;
+    static std::unique_ptr<RealtimeMotionBuffer> zmq_motion_buffer;
 
     // OpenHLM 风格 state 发布器(50Hz tick 内联、非阻塞; 部署序→JAKA 序重排)
     static std::unique_ptr<StatePublisher> zmq_state_pub;
@@ -191,8 +190,28 @@ namespace RLController
             return false;
         }
 
-        if (!decode_super_parallel_ankles(zmq_q, zmq_qd, "SuperMimic ZMQ feedback"))
-            return false;
+        // Use the original real ZMQ ankle path, including its failure-to-zero
+        // behavior. Do not route this mode through the simulation solver.
+        double pitch, roll, dpitch, droll, J[2][2];
+        if (AB2PitchRoll(zmq_q[4], zmq_q[5], zmq_qd[4], zmq_qd[5],
+                         &pitch, &roll, &dpitch, &droll, J) < 0)
+        {
+            pitch = roll = dpitch = droll = 0.0;
+        }
+        zmq_q[4] = pitch;
+        zmq_q[5] = roll;
+        zmq_qd[4] = dpitch;
+        zmq_qd[5] = droll;
+
+        if (AB2PitchRoll(-zmq_q[16], -zmq_q[17], -zmq_qd[16], -zmq_qd[17],
+                         &pitch, &roll, &dpitch, &droll, J) < 0)
+        {
+            pitch = roll = dpitch = droll = 0.0;
+        }
+        zmq_q[16] = pitch;
+        zmq_q[17] = roll;
+        zmq_qd[16] = dpitch;
+        zmq_qd[17] = droll;
 
         if (mRobot->get_imu(zmq_imu))
         {
@@ -246,7 +265,7 @@ namespace RLController
     }
 
     static inline std::array<float, kJakaMiniSuperZMQCommandDim> zmq_construct_command(
-        const std::array<InterpolatedFrame, SuperRealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
     {
         std::array<float, kJakaMiniSuperZMQCommandDim> cmd{};
         const Eigen::Vector3f anchor_pos = frames[0].root_pos_w;
@@ -281,7 +300,7 @@ namespace RLController
     }
 
     static inline std::array<float, kJakaMiniSuperZMQAnchorOriDim> zmq_construct_anchor_orientation(
-        const std::array<InterpolatedFrame, SuperRealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
     {
         const Eigen::Quaternionf robot_quat_now = zmq_robot_quat_from_imu();
         std::array<float, kJakaMiniSuperZMQAnchorOriDim> ori{};
@@ -354,7 +373,7 @@ namespace RLController
     }
 
     static inline void zmq_pack_history(
-        const std::array<InterpolatedFrame, SuperRealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
     {
         const auto command = zmq_construct_command(frames);
         const auto anchor_ori = zmq_construct_anchor_orientation(frames);
@@ -422,18 +441,26 @@ namespace RLController
                            [](double value) { return std::isfinite(value); });
     }
 
-    static void zmq_write_policy_diagnostic(const MotionWindow &window, bool reset_history)
+    static void zmq_write_policy_diagnostic(
+        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &sampled_frames,
+        bool reset_history, bool buffer_ready = false, bool reset_alignment = false)
     {
         if (!zmq_policy_diagnostic.is_open()) return;
         nlohmann::json frames = nlohmann::json::array();
-        for (const auto &frame : window.frames)
+        for (const auto &frame : sampled_frames)
             frames.push_back({{"root_pos", {frame.root_pos_w.x(), frame.root_pos_w.y(), frame.root_pos_w.z()}},
                               {"root_quat", {frame.root_quat_w.w(), frame.root_quat_w.x(), frame.root_quat_w.y(), frame.root_quat_w.z()}},
                               {"joint_pos_buffer", std::vector<float>(frame.dof_pos.data(), frame.dof_pos.data() + frame.dof_pos.size())}});
         const nlohmann::json record = {
-            {"step", zmq_timing_step_count}, {"query_steady_ns", window.query_steady_ns},
-            {"generation", window.generation}, {"status", SuperRealtimeMotionBuffer::status_name(window.status)},
-            {"reset_history", reset_history}, {"frames", frames},
+            {"step", zmq_timing_step_count},
+            {"buffer_backend", "legacy_arrival"}, {"reference_ready", buffer_ready},
+            {"query_steady_ns", std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count()},
+            {"query_time_scope", "diagnostic_write_not_buffer_query"},
+            // Compatibility fields for existing offline policy-tape readers.
+            // The legacy buffer has no stream generations or stale status.
+            {"generation", buffer_ready ? 1 : 0}, {"status", buffer_ready ? "tracking" : "buffering"},
+            {"reset_history", reset_history}, {"reset_alignment", reset_history || reset_alignment}, {"frames", frames},
             {"robot_quat", {zmq_quat[0], zmq_quat[1], zmq_quat[2], zmq_quat[3]}},
             {"omega", {zmq_omega[0], zmq_omega[1], zmq_omega[2]}},
             {"q_deploy", std::vector<double>(zmq_q, zmq_q + mNumAction)},
@@ -503,43 +530,41 @@ namespace RLController
         }
 
         const auto t_obs_start = std::chrono::steady_clock::now();
-        MotionWindow window;
+        std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> frames;
+        bool buffer_ready = false;
         try
         {
-            window = zmq_motion_buffer->get_observation();
+            buffer_ready = zmq_motion_buffer->ready();
+            frames = zmq_motion_buffer->get_obs();
         }
         catch (const std::exception &error)
         {
             latch_super_fault("SuperMimic motion window", error.what());
             return;
         }
-        const bool new_stream = window.reference_ready() && window.generation != zmq_last_generation;
-        if (zmq_first_step || window.status != zmq_last_buffer_status || new_stream)
+        const bool reset_history = zmq_first_step;
+        const bool reset_alignment = zmq_first_step || (!zmq_last_ready && buffer_ready);
+        if (zmq_first_step)
         {
-            std::printf("[motion window] generation=%llu status=%s recv_age=%.1fms clamp=%d/%d\n",
-                        static_cast<unsigned long long>(window.generation),
-                        SuperRealtimeMotionBuffer::status_name(window.status),
-                        window.latest_recv_age_ns / 1.e6, window.clamped_low, window.clamped_high);
-        }
-        // BUFFERING uses the configured standing reference, or the last consumed
-        // reference after a reset. STALE holds one reference pose. Continue the
-        // balance policy explicitly; neither status is treated as fresh motion.
-        // Rebuild yaw, previous action and history once a NEW generation is ready.
-        if (zmq_first_step || new_stream)
-        {
-            zmq_initialize_alignment(window.frames[0]);
+            zmq_initialize_alignment(frames[0]);
             zmq_initialize_last_action();
             zmq_construct_single_obs();
             zmq_init_history();
         }
         else
         {
+            // Match the original real ZMQ mode: align on the first received
+            // motion, while retaining the running action/sensor history.
+            if (!zmq_last_ready && buffer_ready)
+            {
+                std::printf("[SuperMimic] first legacy ZMQ reference: realigning yaw\n");
+                zmq_initialize_alignment(frames[0]);
+            }
             zmq_construct_single_obs();
             zmq_push_history();
         }
-        zmq_pack_history(window.frames);
-        if (new_stream) zmq_last_generation = window.generation;
-        zmq_last_buffer_status = window.status;
+        zmq_pack_history(frames);
+        zmq_last_ready = buffer_ready;
         zmq_first_step = false;
         const auto t_obs_end = std::chrono::steady_clock::now();
 
@@ -579,7 +604,7 @@ namespace RLController
             latch_super_fault("SuperMimic trajectory", "controller rejected joint trajectory");
             return;
         }
-        zmq_write_policy_diagnostic(window, new_stream || zmq_timing_step_count == 0);
+        zmq_write_policy_diagnostic(frames, reset_history, buffer_ready, reset_alignment);
         const auto t_action_end = std::chrono::steady_clock::now();
 
         // Calculate timings in milliseconds
@@ -648,7 +673,6 @@ namespace RLController
             FSMFaultEnter(FSM_IDLE);
             return;
         }
-        reset_super_parallel_ankles();
         if (!zmq_resolve_policy_layout())
         {
             latch_super_fault("SuperMimic entry", "invalid policy layout");
@@ -663,8 +687,7 @@ namespace RLController
         zmq_exit_chord_released = false;
         mRobot->set_cur_control_stat(FSM_JAKAMINIMIMIC_SUPERZMQ);
         zmq_first_step = true;
-        zmq_last_generation = 0;
-        zmq_last_buffer_status = MotionWindow::Status::Buffering;
+        zmq_last_ready = false;
         zmq_policy_diagnostic.close();
         zmq_policy_diagnostic.clear();
         if (const char *path = std::getenv("JAKA_SUPER_POLICY_DIAG_JSONL"); path && *path)
@@ -699,7 +722,7 @@ namespace RLController
 
         try
         {
-            zmq_motion_buffer = std::make_unique<SuperRealtimeMotionBuffer>(
+            zmq_motion_buffer = std::make_unique<RealtimeMotionBuffer>(
                 mJointNames,
                 mJakaMiniSuperZmqConnect,
                 mJakaMiniSuperZmqHwm,
@@ -709,9 +732,7 @@ namespace RLController
                 mJakaMiniSuperZmqDefaultJointPos.size() > 0 ? mJakaMiniSuperZmqDefaultJointPos
                                                        : Eigen::VectorXf::Zero(mNumAction),
                 mJakaMiniSuperZmqDefaultRootPos,
-                mJakaMiniSuperZmqDefaultRootQuat,
-                mJakaMiniSuperZmqTiming,
-                0, static_cast<float>(mJakaMiniSuperZmqRootHeightOffset));
+                mJakaMiniSuperZmqDefaultRootQuat);
 
             // OpenHLM 风格 state 发布器(绑定 :28711; 失败仅告警, 不影响控制)
             zmq_state_pub = std::make_unique<StatePublisher>(mStateZmqBind);

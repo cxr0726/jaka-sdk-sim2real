@@ -166,15 +166,5 @@ jakaminimimic_superzmq:
   future_steps: [0, 1, 2, 3, 4]
   default_root_pos: [0.0, 0.0, 0.65]
   default_root_quat: [1.0, 0.0, 0.0, 0.0]
-  # Existing live Pico height calibration; use 0 for calibrated training NPZ.
-  reference_height_offset: 0.05
-  clock:
-    timestamp_mode: source
-    warmup_s: 0.5
-    min_samples: 8
-    statistics_window_s: 10.0
-    quantile: 0.05
-    max_slew: 0.001
-    stale_timeout_s: 0.5
-    reset_gap_s: 0.5
-    discontinuity_s: 0.25
+  # Use the original real RealtimeMotionBuffer: receiver system_clock insertion
+  # and queries, no source-clock warmup or extra reference-height offset.

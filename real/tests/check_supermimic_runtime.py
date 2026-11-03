@@ -253,6 +253,8 @@ def run(args, summary):
     generations = set()
     previous_step = None
     activated_generation = None
+    legacy_last_ready = False
+    legacy_alignment = None
     summary.update(checked_steps=0, reset_count=0, continuation_count=0,
                    stopped_at_max_steps=False, status_counts={}, generations=[])
     with args.tape.open(encoding="utf-8") as stream, torch.inference_mode():
@@ -285,15 +287,28 @@ def run(args, summary):
             status = record["status"]
             if status not in ("buffering", "tracking", "underrun", "stale"):
                 raise ValueError(f"Unknown motion-window status: {status!r}")
-            # Receiving a generation does not activate it during buffering.
-            # Reset once on the first tick, then once whenever a new generation
-            # first becomes ready; stale/buffering status changes alone do not reset.
             ready = status in ("tracking", "underrun")
-            activate = ready and generation != activated_generation
-            if reset != (previous_step is None or activate):
-                raise ValueError("reset_history disagrees with first-tick/ready-generation activation")
-            if activate:
-                activated_generation = generation
+            legacy = record.get("buffer_backend") == "legacy_arrival"
+            if legacy:
+                if reset != (previous_step is None):
+                    raise ValueError("legacy history resets only on entry, not on first received motion")
+                if record.get("reference_ready") is not ready or generation != int(ready):
+                    raise ValueError("legacy readiness compatibility fields disagree")
+                if legacy_last_ready and not ready:
+                    raise ValueError("legacy readiness cannot become false after its first packet")
+                expected_alignment_reset = previous_step is None or (ready and not legacy_last_ready)
+                if record.get("reset_alignment") is not expected_alignment_reset:
+                    raise ValueError("legacy alignment must reset on first tick/first ready without clearing history")
+                if record.get("query_time_scope") != "diagnostic_write_not_buffer_query":
+                    raise ValueError("legacy diagnostic time must not be described as buffer query time")
+                legacy_last_ready = ready
+            else:
+                # Source-clock buffers activate a generation only when ready.
+                activate = ready and generation != activated_generation
+                if reset != (previous_step is None or activate):
+                    raise ValueError("reset_history disagrees with first-tick/ready-generation activation")
+                if activate:
+                    activated_generation = generation
             frames = record["frames"]
             if not isinstance(frames, list) or len(frames) != 5:
                 raise ValueError("Each policy tick must contain five reference frames")
@@ -313,6 +328,22 @@ def run(args, summary):
             recorded_obs = array(record["obs"], (620,), "obs")
             actions = array(record["actions"], (27,), "actions")
             targets = array(record["targets_deploy"], (27,), "targets_deploy", np.float64)
+
+            if legacy:
+                if expected_alignment_reset:
+                    def yaw(quat):
+                        quat = np.asarray(quat, dtype=float)
+                        quat /= np.linalg.norm(quat)
+                        w, x, y, z = quat
+                        return np.arctan2(2*(w*z+x*y), 1-2*(y*y+z*z))
+                    delta = yaw(record["robot_quat"]) - yaw(frames[0]["root_quat"])
+                    legacy_alignment = np.array([np.cos(delta/2),0.,0.,np.sin(delta/2)])
+                recorded_alignment = np.asarray(record["align_quat"], dtype=float)
+                # q and -q represent the same rotation.
+                alignment_error = min(np.max(abs(recorded_alignment-legacy_alignment)),
+                                      np.max(abs(recorded_alignment+legacy_alignment)))
+                if alignment_error > 2.e-6:
+                    raise ValueError("legacy yaw alignment changed or did not hold between first-ready events")
 
             # The reference-relative displacement uses the full original reference
             # rotation. Alignment is applied to reference orientation, on the left.
