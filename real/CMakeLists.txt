@@ -150,6 +150,15 @@ if(BUILD_TESTING)
   add_test(NAME real_supermimic_actual_config_init COMMAND RealSuperMimicConfigTest
     "${CMAKE_CURRENT_SOURCE_DIR}/config/KpiConfig.yaml")
   set_tests_properties(real_supermimic_actual_config_init PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+  # Actual FSM/IDLE/FSMUpdate code with deterministic fake I/O and inference.
+  # This target links no RobotIntf, ROS, ONNX Runtime or ZMQ implementation.
+  add_executable(RealSuperMimicFsmTest tests/test_supermimic_fsm.cpp
+    src/SuperMimicSafety.cpp src/ParallelAnkleSolver.cpp)
+  target_include_directories(RealSuperMimicFsmTest BEFORE PRIVATE
+    tests/fsm_stubs include ext_libs)
+  target_link_libraries(RealSuperMimicFsmTest PRIVATE Eigen3::Eigen)
+  add_test(NAME real_supermimic_fsm_fault_paths COMMAND RealSuperMimicFsmTest)
 endif()
 
 ament_package()

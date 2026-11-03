@@ -1,0 +1,437 @@
+{
+  "policy_order_matches_onnx": true,
+  "wire_buffer_policy_sentinel_max_error": 0.0,
+  "yaml_q0_vs_model_max_error": 0.0,
+  "sensor_scales": {
+    "angvel": 0.5,
+    "jointvel": 0.2
+  },
+  "actionscale": 0.5,
+  "joint_table": [
+    {
+      "policy_index": 0,
+      "joint": "left_hip_pitch_joint",
+      "sdk_index": 0,
+      "buffer_index": 0,
+      "wire_index": 0,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 1,
+      "joint": "left_hip_roll_joint",
+      "sdk_index": 1,
+      "buffer_index": 3,
+      "wire_index": 1,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 2,
+      "joint": "left_hip_yaw_joint",
+      "sdk_index": 2,
+      "buffer_index": 8,
+      "wire_index": 2,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 3,
+      "joint": "left_knee_joint",
+      "sdk_index": 3,
+      "buffer_index": 13,
+      "wire_index": 3,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 4,
+      "joint": "left_ankle_pitch_joint",
+      "sdk_index": 4,
+      "buffer_index": 17,
+      "wire_index": 4,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "dedicated PR PD",
+      "mit_gains": [
+        0,
+        5
+      ],
+      "pr_gains": [
+        100,
+        2
+      ]
+    },
+    {
+      "policy_index": 5,
+      "joint": "left_ankle_roll_joint",
+      "sdk_index": 5,
+      "buffer_index": 21,
+      "wire_index": 5,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "dedicated PR PD",
+      "mit_gains": [
+        0,
+        5
+      ],
+      "pr_gains": [
+        50,
+        0.5
+      ]
+    },
+    {
+      "policy_index": 6,
+      "joint": "right_hip_pitch_joint",
+      "sdk_index": 12,
+      "buffer_index": 1,
+      "wire_index": 6,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 7,
+      "joint": "right_hip_roll_joint",
+      "sdk_index": 13,
+      "buffer_index": 4,
+      "wire_index": 7,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 8,
+      "joint": "right_hip_yaw_joint",
+      "sdk_index": 14,
+      "buffer_index": 9,
+      "wire_index": 8,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 9,
+      "joint": "right_knee_joint",
+      "sdk_index": 15,
+      "buffer_index": 14,
+      "wire_index": 9,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 10,
+      "joint": "right_ankle_pitch_joint",
+      "sdk_index": 16,
+      "buffer_index": 18,
+      "wire_index": 10,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "dedicated PR PD",
+      "mit_gains": [
+        0,
+        5
+      ],
+      "pr_gains": [
+        100,
+        2
+      ]
+    },
+    {
+      "policy_index": 11,
+      "joint": "right_ankle_roll_joint",
+      "sdk_index": 17,
+      "buffer_index": 22,
+      "wire_index": 11,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "dedicated PR PD",
+      "mit_gains": [
+        0,
+        5
+      ],
+      "pr_gains": [
+        50,
+        0.5
+      ]
+    },
+    {
+      "policy_index": 12,
+      "joint": "waist_yaw_joint",
+      "sdk_index": 24,
+      "buffer_index": 2,
+      "wire_index": 12,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 13,
+      "joint": "left_shoulder_pitch_joint",
+      "sdk_index": 6,
+      "buffer_index": 5,
+      "wire_index": 13,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 14,
+      "joint": "left_shoulder_roll_joint",
+      "sdk_index": 7,
+      "buffer_index": 10,
+      "wire_index": 14,
+      "yaml_q0": -1.57,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 15,
+      "joint": "left_shoulder_yaw_joint",
+      "sdk_index": 8,
+      "buffer_index": 15,
+      "wire_index": 15,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 16,
+      "joint": "left_elbow_joint",
+      "sdk_index": 9,
+      "buffer_index": 19,
+      "wire_index": 16,
+      "yaml_q0": 1.57,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 17,
+      "joint": "left_wrist_roll_joint",
+      "sdk_index": 10,
+      "buffer_index": 23,
+      "wire_index": 17,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 18,
+      "joint": "left_wrist_yaw_joint",
+      "sdk_index": 11,
+      "buffer_index": 25,
+      "wire_index": 18,
+      "yaml_q0": 0.3,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 19,
+      "joint": "right_shoulder_pitch_joint",
+      "sdk_index": 18,
+      "buffer_index": 7,
+      "wire_index": 19,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 20,
+      "joint": "right_shoulder_roll_joint",
+      "sdk_index": 19,
+      "buffer_index": 12,
+      "wire_index": 20,
+      "yaml_q0": -1.57,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 100,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        100
+      ]
+    },
+    {
+      "policy_index": 21,
+      "joint": "right_shoulder_yaw_joint",
+      "sdk_index": 20,
+      "buffer_index": 16,
+      "wire_index": 21,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 22,
+      "joint": "right_elbow_joint",
+      "sdk_index": 21,
+      "buffer_index": 20,
+      "wire_index": 22,
+      "yaml_q0": 1.57,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 23,
+      "joint": "right_wrist_roll_joint",
+      "sdk_index": 22,
+      "buffer_index": 24,
+      "wire_index": 23,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 24,
+      "joint": "right_wrist_yaw_joint",
+      "sdk_index": 23,
+      "buffer_index": 26,
+      "wire_index": 24,
+      "yaml_q0": 0.3,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 25,
+      "joint": "neck_yaw_joint",
+      "sdk_index": 25,
+      "buffer_index": 6,
+      "wire_index": 25,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    },
+    {
+      "policy_index": 26,
+      "joint": "neck_pitch_joint",
+      "sdk_index": 26,
+      "buffer_index": 11,
+      "wire_index": 26,
+      "yaml_q0": 0.0,
+      "yaml_global_kp": 100,
+      "yaml_global_kd": 200,
+      "active_control": "MIT",
+      "mit_gains": [
+        100,
+        200
+      ]
+    }
+  ],
+  "new_model_sha": "67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b",
+  "note": "Offline joint-order audit only. Global YAML Kp/Kd are not the active MIT gains for the four ankle channels; unchanged real FSMInit uses MIT(0,5) and dedicated PR gains.",
+  "model_sha256": "67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b",
+  "config_sha256": "fcf25efaccbc000c3ffa6392ed5093cfebb366610648e60a349420d6f894a5f7"
+}

@@ -4,7 +4,7 @@
   "model_sha256": "67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b",
   "parameter_source": "YAML only; no runtime ONNX metadata parameter reads",
   "ctest": {
-    "passed": 6,
+    "passed": 7,
     "failed": 0
   },
   "offline_actual_fsm": {
@@ -105,5 +105,156 @@
     "Full executable linked against actual bundled RobotIntf; it was never run.",
     "Host std_srvs dependency downloaded from configured signed official ROS repository and extracted only under /tmp for validation.",
     "Offline checks replay supplied sensors/references; no physical closed-loop performance claim."
+  ],
+  "fsm_behavior_test_cases": 51,
+  "direct_sim_real_comparison": {
+    "total_steps": 31178,
+    "passed": true,
+    "after_safety_fixes": true,
+    "max_obs_and_action_difference": 0.0,
+    "cases": [
+      {
+        "motion": "fallAndGetUp2_subject2",
+        "steps": 8316,
+        "max_abs_errors": {
+          "reference_root_displacement_b": 0.0,
+          "reference_world_z": 0.0,
+          "reference_joint_pos": 0.0,
+          "future_anchor_ori_b": 0.0,
+          "projected_gravity_history": 0.0,
+          "base_ang_vel_history": 0.0,
+          "joint_pos_history": 0.0,
+          "joint_vel_history": 0.0,
+          "raw_action_history": 0.0,
+          "actions": 0.0,
+          "sim_unclipped_target_formula": 0.0,
+          "real_clipped_target_formula": 0.0,
+          "real_vs_clipped_sim_target": 0.0,
+          "same_sensor_input": 0.0,
+          "same_reference_input": 0.0,
+          "same_alignment": 0.0
+        },
+        "clipped_components": 5524,
+        "max_target_clip_rad": 3.5821753311157227
+      },
+      {
+        "motion": "walk2_subject1",
+        "steps": 12197,
+        "max_abs_errors": {
+          "reference_root_displacement_b": 0.0,
+          "reference_world_z": 0.0,
+          "reference_joint_pos": 0.0,
+          "future_anchor_ori_b": 0.0,
+          "projected_gravity_history": 0.0,
+          "base_ang_vel_history": 0.0,
+          "joint_pos_history": 0.0,
+          "joint_vel_history": 0.0,
+          "raw_action_history": 0.0,
+          "actions": 0.0,
+          "sim_unclipped_target_formula": 0.0,
+          "real_clipped_target_formula": 0.0,
+          "real_vs_clipped_sim_target": 0.0,
+          "same_sensor_input": 0.0,
+          "same_reference_input": 0.0,
+          "same_alignment": 0.0
+        },
+        "clipped_components": 1742,
+        "max_target_clip_rad": 0.4232476162910461
+      },
+      {
+        "motion": "dance1_subject2",
+        "steps": 6797,
+        "max_abs_errors": {
+          "reference_root_displacement_b": 0.0,
+          "reference_world_z": 0.0,
+          "reference_joint_pos": 0.0,
+          "future_anchor_ori_b": 0.0,
+          "projected_gravity_history": 0.0,
+          "base_ang_vel_history": 0.0,
+          "joint_pos_history": 0.0,
+          "joint_vel_history": 0.0,
+          "raw_action_history": 0.0,
+          "actions": 0.0,
+          "sim_unclipped_target_formula": 0.0,
+          "real_clipped_target_formula": 0.0,
+          "real_vs_clipped_sim_target": 0.0,
+          "same_sensor_input": 0.0,
+          "same_reference_input": 0.0,
+          "same_alignment": 0.0
+        },
+        "clipped_components": 1363,
+        "max_target_clip_rad": 0.46045359373092654
+      },
+      {
+        "motion": "newsmallstep",
+        "steps": 3127,
+        "max_abs_errors": {
+          "reference_root_displacement_b": 0.0,
+          "reference_world_z": 0.0,
+          "reference_joint_pos": 0.0,
+          "future_anchor_ori_b": 0.0,
+          "projected_gravity_history": 0.0,
+          "base_ang_vel_history": 0.0,
+          "joint_pos_history": 0.0,
+          "joint_vel_history": 0.0,
+          "raw_action_history": 0.0,
+          "actions": 0.0,
+          "sim_unclipped_target_formula": 0.0,
+          "real_clipped_target_formula": 0.0,
+          "real_vs_clipped_sim_target": 0.0,
+          "same_sensor_input": 0.0,
+          "same_reference_input": 0.0,
+          "same_alignment": 0.0
+        },
+        "clipped_components": 347,
+        "max_target_clip_rad": 0.4716992020606995
+      },
+      {
+        "motion": "motion_pico2",
+        "steps": 741,
+        "max_abs_errors": {
+          "reference_root_displacement_b": 0.0,
+          "reference_world_z": 0.0,
+          "reference_joint_pos": 0.0,
+          "future_anchor_ori_b": 0.0,
+          "projected_gravity_history": 0.0,
+          "base_ang_vel_history": 0.0,
+          "joint_pos_history": 0.0,
+          "joint_vel_history": 0.0,
+          "raw_action_history": 0.0,
+          "actions": 0.0,
+          "sim_unclipped_target_formula": 0.0,
+          "real_clipped_target_formula": 0.0,
+          "real_vs_clipped_sim_target": 0.0,
+          "same_sensor_input": 0.0,
+          "same_reference_input": 0.0,
+          "same_alignment": 0.0
+        },
+        "clipped_components": 63,
+        "max_target_clip_rad": 0.19956465959548952
+      }
+    ],
+    "replay_binaries": {
+      "sim": {
+        "path": "/home/cxr0726/workspace/JAKA_comparison/diagnostics/real_super_verify_20261103/SimSuperMimicPolicyReplay",
+        "sha256": "e04b463bb5edbdc94a10c634b2e2adf4b39ef29cfbc128accaeed02ec6a6a261"
+      },
+      "real": {
+        "path": "/home/cxr0726/workspace/JAKA_comparison/real/build-supermimic/RealSuperMimicPolicyTest",
+        "sha256": "e19b12b5b87a844de4fd02f269a01ef6b120b9aedf0207f5508f060a3d184aa3"
+      }
+    }
+  },
+  "sim_snapshot_verification": {
+    "files": 234,
+    "content_mismatches": [],
+    "missing_files": [],
+    "tree": "eafcbfa3dc9c6eaccafbfe8f1a4bd736b249c6b7"
+  },
+  "supported_real_super_angle_map": 0,
+  "safety_fixes": [
+    "IDLE A disable independent of local enable flag, priority over enable/mode chords",
+    "Reject unsupported Super angle_map before entry/output",
+    "No inference or trajectory on prelatched error or failed entry same tick"
   ]
 }

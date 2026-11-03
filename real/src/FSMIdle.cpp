@@ -46,6 +46,13 @@ namespace RLController
         {
             ReqState = FSM_FAULT;
         }
+        else if (ctrl_source == legged_waist_controller::RobotIntf::ControlSource::JOY &&
+                 joydata.joy.buttons_A)
+        {
+            // Stop takes precedence over every mode chord. The run function
+            // disables even when the local enable flag was reset on IDLE entry.
+            ReqState = FSM_IDLE;
+        }
         else
         {
             if (ctrl_source == legged_waist_controller::RobotIntf::ControlSource::JOY)
@@ -91,25 +98,33 @@ namespace RLController
         {
             mErrCode = ERR_JOINT;
         }
+        if (mErrCode != ERR_NONE)
+        {
+            mRobot->do_enable(false);
+            enable_robot = bind_data = go_target = false;
+            return;
+        }
 
         if (ctrl_source == legged_waist_controller::RobotIntf::ControlSource::JOY)
         {
-            if (!enable_robot && joydata.joy.buttons_BACK)
-            {
-                // BACK requests the controller's all-joint enable operation.
-                mRobot->do_enable(true);
-                enable_robot = true;
-                printf("------------enable robot-----------\n");
-            }
-
-            if (enable_robot && joydata.joy.buttons_A)
+            if (joydata.joy.buttons_A)
             {
                 // A requests all-joint disable and cancels the local target move.
+                // Physical servos can still be enabled after a mode returned
+                // to IDLE and reset the local enable_robot flag.
                 mRobot->do_enable(false);
                 enable_robot = false;
                 bind_data = false;
                 go_target = false;
                 printf("---------------- disable robot ---------------\n");
+                return; // Never issue an enable pulse or trajectory on A.
+            }
+            else if (!enable_robot && joydata.joy.buttons_BACK)
+            {
+                // BACK requests the controller's all-joint enable operation.
+                mRobot->do_enable(true);
+                enable_robot = true;
+                printf("------------enable robot-----------\n");
             }
         }
 

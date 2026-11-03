@@ -386,8 +386,12 @@ namespace RLController
 
     static inline bool zmq_fill_trajectory()
     {
-        // Previous actions retain the raw network values. Physical targets use
-        // the existing real YAML position limits, before optional PR -> AB.
+        // The real SuperMimic deployment supports the controller's PR PD path.
+        // Motor-space MIT uses different gain/limit semantics; do not send an
+        // AB target using a limit that was defined for another coordinate axis.
+        if (mAngleMapFlag != 0) return false;
+        // Previous actions retain the raw network values. Physical PR targets
+        // use the existing real YAML joint-position limits.
         for (int policy_idx = 0; policy_idx < mNumAction; ++policy_idx)
             if (!std::isfinite(mMimicJakaMiniSuperZmqPolicy.output_buffer[policy_idx]))
                 return false;
@@ -413,8 +417,6 @@ namespace RLController
         if (limited && zmq_timing_step_count % 50 == 0)
             std::cerr << "[FSMJakaMiniSuperZmq] physical targets limited by real YAML joint bounds" << std::endl;
 
-        if (mAngleMapFlag && !encode_super_parallel_ankle_targets(mPt.positions.data(), "SuperMimic ZMQ target"))
-            return false;
         mPt.time_from_start = rclcpp::Duration(std::chrono::duration<double>(mTimeStep));
         return std::all_of(mPt.positions.begin(), mPt.positions.end(),
                            [](double value) { return std::isfinite(value); });
@@ -477,6 +479,9 @@ namespace RLController
     static void fsm_mimic_jaka_mini_superzmq_run()
     {
         const auto t_step_start = std::chrono::steady_clock::now();
+        // A failed entry can latch an error before this same FSMUpdate calls
+        // StateRun. Still-enabled cached feedback must not revive commands.
+        if (mErrCode != ERR_NONE) return;
 
         if (!zmq_fetch_robot_state())
         {
@@ -637,11 +642,18 @@ namespace RLController
             if (mRobot) mRobot->do_enable(false);
             return;
         }
+        if (mAngleMapFlag != 0)
+        {
+            latch_super_fault("SuperMimic entry", "real SuperMimic requires YAML angle_map=0 (PR PD)");
+            FSMFaultEnter(FSM_IDLE);
+            return;
+        }
         reset_super_parallel_ankles();
         if (!zmq_resolve_policy_layout())
         {
             latch_super_fault("SuperMimic entry", "invalid policy layout");
             mErrCode = ERR_INIT;
+            FSMFaultEnter(FSM_IDLE);
             return;
         }
 
