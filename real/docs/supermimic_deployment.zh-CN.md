@@ -39,6 +39,34 @@
 
 默认接收 `tcp://10.5.5.120:28701`，`reference_height_offset=.05` 保留现场 Pico 校准；已校准训练 NPZ 应使用0。缓冲缺流/过期时使用明确的默认/保持参考继续平衡；这不等于伪造机器人测量。
 
+### 仿真端单独启动控制
+
+以下只启动 SuperMimic 控制并等待 ZMQ 动作，不启动发布端：
+
+```bash
+cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
+./scripts/run_demo.sh --viewer --duration 0 --mode jakaminimimic_superzmq
+```
+
+`--viewer` 自动启用实时节拍；无 viewer 时将其替换为 `--realtime`。默认 XML 为 `sim/sdk/assets/khan_mini/Khan_mini_contact.xml`（当前完整脚部凸包），由 `KPI_MUJOCO_XML` 环境变量或显式 `--xml` 覆盖。默认策略来自 sim YAML 的 `../export/khan_mini/ckpt_0100000_new.onnx`，连接 `tcp://10.5.5.120:28701`；SDK 根目录也可由 `KPI_MUJOCO_SIM_SDK_ROOT` 改写。
+
+### PICO 实时发送端
+
+使用 `sim/demo/scripts/pico_pub_copy.py`，在原先已经配置好的 JAKA/Pico/GMR 发送端环境运行：
+
+```bash
+cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
+python scripts/pico_pub_copy.py --robot jaka --bind 'tcp://*:28701'
+```
+
+脚本默认 robot=g1，必须指定 `--robot jaka`，其 GMR 目标映射为 jaka_mini。默认发布30Hz，C++策略仍50Hz并由 buffer 插值；需要50Hz时可加 `--publish-hz 50`，实际频率受XR/GMR耗时影响。发送设备须对应接收配置的10.5.5.120；`bind *` 只表示监听发送设备所有网卡，不会改变它的IP。
+
+脚本启动后首次 PICO X 前静默；控制器已就位并进入策略后按X开始遥操作，后续X暂停/恢复，暂停仍发布保持姿态和新 motion_t_ns。PICO A 在本脚本中只切换采集标志，不直接调用实机断使能；实机结束按 real 框架接收的遥控 A。不要加 `--skip-retarget`，该调试分支发送 NaN 关节，Super buffer 会拒绝。
+
+时间协议已匹配：motion_t_ns 在XR读取边界、GMR之前记录，publish_t_ns 在payload完成后记录。source模式消费声明的 motion_t_ns。
+
+本仓库不包含完整 JAKA 发送端环境：附带 thirdparty/sim2real 的上游注册表只有G1/H2，而此脚本从实际 Python 环境中的 sim2real 获取 robot_cfg；必须使用原来含JAKA配置和GMR资产的环境。其 joint_names 应为27维JAKA发送序，body_names[0]为base_link。不能将一份未安装JAKA扩展的上游环境当作可直接运行的发送端。
+
 ### Buffer 选择与旧版区别
 
 这里的“旧版”指 real 的 `RealtimeMotionBuffer`；当前 sim 的 `RealtimeMotionBuffer` 核心算法与 real 的 `SuperRealtimeMotionBuffer` 相同，real 另起类名是为了保留原两种部署模式的行为。
@@ -70,6 +98,8 @@
 新模式使用独立的 sim 修复版有界求解器和 `SuperMimicSafety`：左右独立缓存，缓存解与确定性解交叉检查，两腿成功后才提交，保留右脚符号/速度约定。失败设置 ERR_JOINT、请求关闭 PD/断使能，不用零解或旧解继续发轨迹。还检查观测、推理异常/输出和轨迹 API 返回值。
 
 没有替换旧 `ParKine.cpp` / C ABI，没有改变其他模式的解算，没有改控制器进程/硬件库内部 PR PD 算法。
+
+当前 angle_map=0 时，旧 ZMQ/fixwrist 与 Super 都下发物理 PR 目标，不在本进程先转换成AB；由原控制器专用PR PD处理。左AB反馈按正号、右AB反馈按负号输入正解，右脚PR目标不额外取负。最终都是 `set_joint_trajectory(mJointNames,mPt)`，20ms周期、SDK关节顺序和实机PD配置相同。变化在于反馈求解算法、失败处理和策略输出语义：旧模式 raw action 先裁到±5，Super保留raw值/历史，再对物理目标限幅。只有新模式检查轨迹API拒绝并请求停机。新反馈求解器没有替换外部控制器内部的PR PD/力矩映射算法。
 
 ## 构建与验证
 
