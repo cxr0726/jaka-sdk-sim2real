@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 static void require(bool ok, const char *reason)
@@ -21,6 +22,35 @@ static int active_geom(const mjModel *m, const char *body, int type)
 }
 static void same(const mjtNum *a,const mjtNum *b,int n,const char *name)
 { for(int i=0;i<n;++i) require(std::abs(a[i]-b[i])<1.e-13,name); }
+static void check_armature(const mjModel *old,const mjModel *cad)
+{
+    // The committed CAD model already uses .016 for these four drive DOFs,
+    // while the preserved legacy model uses .025. This is an asset contract,
+    // not an assertion that drive armature equals training pitch/roll inertia.
+    std::vector<bool> documented_drive(old->nv,false);
+    for (const char *name : {"Left_drive1_joint","Left_drive2_joint",
+                             "Right_drive1_joint","Right_drive2_joint"})
+    {
+        const int old_joint=mj_name2id(old,mjOBJ_JOINT,name);
+        const int cad_joint=mj_name2id(cad,mjOBJ_JOINT,name);
+        require(old_joint>=0 && cad_joint>=0,"documented drive joint missing");
+        require(old->jnt_type[old_joint]==mjJNT_HINGE && cad->jnt_type[cad_joint]==mjJNT_HINGE,
+                "documented drive is not a hinge joint");
+        const int dof=old->jnt_dofadr[old_joint];
+        require(dof>=0 && dof<old->nv && dof==cad->jnt_dofadr[cad_joint],
+                "documented drive DOF mapping changed");
+        require(!documented_drive[dof],"duplicate documented drive DOF");
+        require(std::abs(old->dof_armature[dof]-.025)<1.e-13,
+                (std::string("legacy drive armature changed: ")+name).c_str());
+        require(std::abs(cad->dof_armature[dof]-.016)<1.e-13,
+                (std::string("CAD drive armature changed: ")+name).c_str());
+        documented_drive[dof]=true;
+    }
+    for (int dof=0;dof<old->nv;++dof)
+        if (!documented_drive[dof])
+            require(std::abs(old->dof_armature[dof]-cad->dof_armature[dof])<1.e-13,
+                    "unlisted armature changed");
+}
 
 int main(int argc,char **argv)
 {
@@ -39,7 +69,7 @@ int main(int argc,char **argv)
         same(old->body_pos,cad->body_pos,old->nbody*3,"body pose changed");
         same(old->body_quat,cad->body_quat,old->nbody*4,"body orientation changed");
         same(old->jnt_range,cad->jnt_range,old->njnt*2,"joint limits changed");
-        same(old->dof_armature,cad->dof_armature,old->nv,"armature changed");
+        check_armature(old.get(),cad.get());
         same(old->dof_damping,cad->dof_damping,old->nv,"damping changed");
         same(old->dof_frictionloss,cad->dof_frictionloss,old->nv,"frictionloss changed");
         same(old->actuator_gear,cad->actuator_gear,old->nu*6,"transmission changed");
@@ -62,7 +92,7 @@ int main(int argc,char **argv)
         const int floor=mj_name2id(cad.get(),mjOBJ_GEOM,"floor");require(floor>=0,"floor missing");
         for(int g:{base,lf,rf,lm,rm,le,re}) require(compatible(cad.get(),g,floor),"ground support disabled");
         require(compatible(cad.get(),base,lf)&&compatible(cad.get(),base,rf),"base-foot collision disabled");
-        std::cout<<"CAD contact masks, foot geometry and unchanged dynamics passed\n";
+        std::cout<<"CAD contact masks, foot geometry and documented dynamics passed\n";
         return 0;
     }
     catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
