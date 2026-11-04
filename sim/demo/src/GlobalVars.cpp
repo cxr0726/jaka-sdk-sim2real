@@ -162,8 +162,7 @@ namespace RLController
     Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
     Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos(0.0f, 0.0f, 0.65f);
     Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat = Eigen::Quaternionf::Identity();
-    MotionTimingConfig mJakaMiniSuperZmqTiming;
-    double mJakaMiniSuperZmqRootHeightOffset = 0.05;
+    bool mJakaMiniSuperZmqClipTargetPositions = false;
     std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
 
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序, 控制 tick 内非阻塞)
@@ -571,7 +570,6 @@ namespace RLController
         if (mYamlNode["jakaminimimic_superzmq"])
         {
             const YAML::Node cfg = mYamlNode["jakaminimimic_superzmq"];
-            mJakaMiniSuperZmqTiming = load_motion_timing(cfg);
             mJakaMiniSuperZmqConnect = cfg["zmq_connect"]
                 ? cfg["zmq_connect"].as<std::string>() : mJakaMiniSuperZmqConnect;
             mJakaMiniSuperZmqHwm = cfg["zmq_hwm"] ? cfg["zmq_hwm"].as<int>() : 1;
@@ -584,11 +582,9 @@ namespace RLController
                 throw std::runtime_error("SuperMimic requires dt_s=0.02");
             if (mJakaMiniSuperZmqFutureSteps != std::vector<int>{0, 1, 2, 3, 4})
                 throw std::runtime_error("SuperMimic requires future_steps=[0,1,2,3,4]");
-            mJakaMiniSuperZmqRootHeightOffset = cfg["reference_height_offset"]
-                ? cfg["reference_height_offset"].as<double>() : 0.05;
-            if (!std::isfinite(mJakaMiniSuperZmqRootHeightOffset) ||
-                std::abs(mJakaMiniSuperZmqRootHeightOffset) > 1.0)
-                throw std::runtime_error("SuperMimic reference_height_offset must be finite and within +/-1 m");
+            mJakaMiniSuperZmqClipTargetPositions = cfg["clip_target_positions"].as<bool>(false);
+            if (mJakaMiniSuperZmqClipTargetPositions && mAngleMapFlag != 0)
+                throw std::runtime_error("SuperMimic physical PR target clipping requires angle_map=0");
             if (cfg["default_root_pos"])
             {
                 const auto xyz = cfg["default_root_pos"].as<std::vector<float>>();
@@ -619,9 +615,9 @@ namespace RLController
                 &mMimicJakaMiniSuperZmqPolicy.output_name,
                 mMimicJakaMiniSuperZmqPolicy.output_tensor, 1);
             mJakaMiniSuperZmqEnabled = true;
-            std::printf("SuperMimic ZMQ config loaded: zmq=%s, dt=%.3f, tol=%.3f, height_offset=%.3fm\n",
+            std::printf("SuperMimic ZMQ config loaded: zmq=%s, dt=%.3f, tol=%.3f, legacy arrival clock, target_clip=%d\n",
                         mJakaMiniSuperZmqConnect.c_str(), mJakaMiniSuperZmqDt,
-                        mJakaMiniSuperZmqTolerance, mJakaMiniSuperZmqRootHeightOffset);
+                        mJakaMiniSuperZmqTolerance, mJakaMiniSuperZmqClipTargetPositions);
         }
 
         mPt.positions.resize(mNumAction);
@@ -646,12 +642,10 @@ namespace RLController
         if (mAngleMapFlag)
         {
             double a, b;
-            if (PitchRoll2ABChecked(mInitTarget[4], mInitTarget[5], &a, &b) < 0)
-                throw std::runtime_error("Unreachable left initial ankle target");
+            PitchRoll2AB(mInitTarget[4], mInitTarget[5], &a, &b);
             mInitTarget[4] = a;
             mInitTarget[5] = b;
-            if (PitchRoll2ABChecked(mInitTarget[16], mInitTarget[17], &a, &b) < 0)
-                throw std::runtime_error("Unreachable right initial ankle target");
+            PitchRoll2AB(mInitTarget[16], mInitTarget[17], &a, &b);
             mInitTarget[16] = -a;
             mInitTarget[17] = -b;
         }

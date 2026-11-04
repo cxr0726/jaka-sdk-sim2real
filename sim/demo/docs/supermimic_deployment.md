@@ -31,17 +31,22 @@ cleans up this run's processes.
 
 Replay uses a generated local config, motion port 28721 and state port 28731.
 Logs are under `build/super_npz_replay/`. Source YAML and the remote endpoint
-are not rewritten. The default height offset is 0.05 m for legacy Pico files
-and 0 for named training files; `--height-offset` overrides it. Other optional
+are not rewritten. The legacy buffer adds no height offset. All NPZ layouts
+default to zero offset; explicit `--height-offset` translates publisher world Z
+once, before sampling. `--target-limits none|real` selects the optional physical
+PR target clipping A/B (default `none`). Other optional
 controls are `--npz-layout auto|isaac|jaka`, `KPI_SUPER_NPZ_MOTION_PORT`,
 `KPI_SUPER_NPZ_STATE_PORT`, `KPI_SUPER_NPZ_RUN_DIR`,
 `KPI_SUPER_NPZ_READY_TIMEOUT` and `KPI_SUPER_NPZ_VIEWER`.
 
 `FSMMimicJakaMiniSuperZmq.cpp` follows the existing ZMQ FSM's state acquisition,
 motion-window sampling, yaw alignment, observation construction, history,
-inference and trajectory structure. It uses the shared realtime buffer and
-the same source-clock protocol. Startup and each new ready generation rebuild
-yaw alignment and history. Normal control ticks consume one atomic window.
+inference and trajectory structure. As of 2026-11-04, SuperMimic uses a separate
+`LegacyRealtimeMotionBuffer`, equivalent to the original real receiver: local
+`system_clock` insertion/query, immediate readiness, base slot 0, and no implicit
+height offset. Entry initializes yaw/action/history; first readiness realigns yaw
+without clearing the running history. There are no source generations or warmup.
+Other ZMQ modes retain their existing source-clock buffers.
 
 ## Model contract and joint order
 
@@ -136,10 +141,16 @@ the backend. The action rule is:
 target_deploy[policy_to_deploy[p]] = q0[p] + action_scale[p] * raw_action[p]
 ```
 
-The supplied action scales are all 0.5. Output actions and PD targets are not
-clipped, smoothed or passed through an additional tanh. The original physical
-model's effort/joint constraints remain in the SDK. Nonfinite actions/targets
-stop the controller. Neck actions are included in all 27 outputs.
+The supplied action scales are all 0.5. Raw actions and history are never clipped,
+smoothed or passed through another tanh. By default PD targets are also unclipped,
+matching training. `jakaminimimic_superzmq.clip_target_positions: true` optionally
+clips `q0 + scale * raw_action` in SDK order to `mDownLmt/mUpLmt`, reproducing the
+current real position-command limits. This requires `angle_map=0`; four PR bounds
+are pitch `[-.52,.61]`, roll `[-.35,.35]`. The top-level 27-joint limits match real
+at this revision. NPZ replay exposes `--target-limits none|real` (default none).
+Diagnostic JSONL includes both `targets_raw_deploy` and `targets_deploy`.
+The physical model's effort/joint constraints remain in the SDK. Neck actions
+are included in all 27 outputs.
 
 ## Timing and height configuration
 
@@ -173,8 +184,9 @@ SuperMimic startup override.
 
 `joint_damping` here means actuator **PD Kd**, not XML passive joint damping.
 This code does not apply the metadata's armature, body mass/inertia or contact
-geometry to the XML. Runtime settings such as ZMQ address, buffer clock, reference
-height offset, initial base pose and XML selection remain YAML/CLI settings.
+geometry to the XML. ZMQ address, optional target clipping, initial base pose
+and XML selection remain YAML/CLI settings. Explicit NPZ height translation is
+a publisher CLI option; the legacy Super buffer ignores source clocks.
 The adjacent export `.json` remains a report, not the metadata read at runtime.
 
 SuperMimic also uses its own checked sensor scaling: angular velocity `.5` and
@@ -184,19 +196,30 @@ the source for these SuperMimic observation terms.
 ### Motion window settings
 
 The model requires 20 ms policy periods and future steps `[0,1,2,3,4]`; these
-are checked, including `simulation-dt * control-decimation`. Source clock,
-500 ms warmup, buffer status handling and generation resets follow the shared
-[motion buffer timing](motion_buffer_timing.md).
+are checked, including `simulation-dt * control-decimation`. The original receiver
+uses wall time for insertion and sampling, with delay `4*20+40=120 ms`. Five samples
+are at wall time minus `[120,100,80,60,40] ms`. The first valid packet is ready
+immediately; endpoint clamping holds the last frame after a gap. No source-clock
+mapping, generation reset or stale timeout is applied in Super mode.
 
-`default_root_pos: [0,0,0.65]` is the standing fallback reference. It does not
-override the simulation's explicit initial base position/quaternion.
-`reference_height_offset: 0.05` preserves the existing Pico height correction:
-it is added to received base Z only. For an already calibrated training NPZ,
-set it to `0.0` in the test configuration. This is a geometric offset, separate
-from the observation's scale factors. Other modes keep their current 5 cm
-correction.
+`default_root_pos: [0,0,0.65]` is the empty-buffer standing reference. Received
+references use `body_pos_w[0]` and have no implicit 5 cm lift. Use an explicit
+publisher `--height-offset` only when desired; all layouts default to zero.
 
-## Validation
+The parallel ankle C ABI and shared helpers were also restored to the original
+solver. Both policy feedback and SDK PR PD use the original equations/iteration;
+a negative return zeros that leg's PR feedback as in the original deployment.
+Because the SDK C ABI is shared, this ankle rollback applies to all sim modes.
+General nonfinite-state/physics exception checks remain; the repaired solver's
+assembly/preflight checks and cache comparison were removed. Contact XML, model
+parameters, policy joint order and scales were not changed by this rollback.
+
+See [rollback and target-limit comparison](legacy_supermimic_rollback.md).
+
+## Validation before the 2026-11-04 rollback
+
+The source-clock/repaired-solver results below are historical. Current rollback
+checks and closed-loop target-limit comparisons are recorded in the linked report.
 
 ```bash
 source /opt/ros/humble/setup.bash

@@ -5,6 +5,7 @@ Named NPZ columns are resolved by name, independently of their array order.
 Unnamed 27-joint/28-body files default to legacy Isaac layout. Other unnamed
 layouts require an explicit declaration. All NPZ body quaternions are wxyz;
 source_quat_order describes the converter's input, not its NPZ output.
+Height translation is explicit: --height-offset defaults to zero for all layouts.
 """
 
 from __future__ import annotations
@@ -93,15 +94,18 @@ def _joint_gather(source_names: list[str]) -> list[int]:
     return [source_names.index(name) for name in target]
 
 
-def load_motion(path: str | Path, layout: str = "auto") -> Motion:
+def load_motion(path: str | Path, layout: str = "auto", *, height_offset: float = 0.0) -> Motion:
     """Validate the whole clip and normalize exactly once to JAKA wire arrays.
 
     Only body slot 0 (base) is meaningful for SuperMimic. Other
-    slots are zero-position/identity-quaternion placeholders, not fabricated FK.
-    No joint positions or root heights are changed.
+    slots start as zero-position/identity-quaternion placeholders, not fabricated
+    FK. An explicit height offset translates every output body position once;
+    the source NPZ, joint positions and body orientations are unchanged.
     """
     if layout not in ("auto", "isaac", "jaka"):
         raise ValueError("layout must be auto, isaac, or jaka")
+    if not math.isfinite(height_offset) or abs(height_offset) > 1.0:
+        raise ValueError("height_offset must be finite and within +/-1 m")
     with np.load(path, allow_pickle=False) as data:
         missing = {"joint_pos", "body_pos_w", "body_quat_w"} - set(data.files)
         if missing:
@@ -141,7 +145,7 @@ def load_motion(path: str | Path, layout: str = "auto") -> Motion:
             if "base_link" not in body_names:
                 raise ValueError("body_names must contain base_link for SuperMimic")
             base = body_names.index("base_link")
-            effective_layout, height_offset = "jaka", 0.0
+            effective_layout = "jaka"
         else:
             if layout == "auto":
                 if bodies != 28:
@@ -152,11 +156,11 @@ def load_motion(path: str | Path, layout: str = "auto") -> Motion:
             if layout == "isaac":
                 base = 0
                 gather = _joint_gather([name.casefold() for name in ISAAC_JOINT_NAMES])
-                effective_layout, height_offset = "isaac", 0.05
+                effective_layout = "isaac"
             else:
                 base = 0
                 gather = list(range(27))
-                effective_layout, height_offset = "jaka", 0.0
+                effective_layout = "jaka"
             if bodies <= base:
                 raise ValueError(f"Unnamed {layout} layout requires base body index 0; got {bodies} bodies")
 
@@ -165,6 +169,7 @@ def load_motion(path: str | Path, layout: str = "auto") -> Motion:
     wire_quat[..., 0] = 1.0
     wire_pos[:, 0] = pos[:, base]
     wire_quat[:, 0] = quat[:, base]
+    wire_pos[..., 2] += height_offset
     return Motion(effective_layout, fps, height_offset, q[:, gather].copy(), wire_pos, wire_quat)
 
 
@@ -211,7 +216,8 @@ def make_payload(motion: Motion, elapsed_s: float, *, motion_t_ns: int, seq: int
         "joint_pos": q.tolist(), "body_pos_w": pos.tolist(), "body_quat_w": quat.tolist(),
     }
     # Stamp publication after sampling and constructing the pose payload. This
-    # wall clock is diagnostic only; the receiver uses the declared monotonic clock.
+    # Metadata remains available to recorders and source-clock receivers. The
+    # legacy SuperMimic receiver ignores it and timestamps local arrival itself.
     payload["publish_t_ns"] = time.time_ns()
     return payload, finished
 
@@ -220,6 +226,8 @@ def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("npz", type=Path)
     parser.add_argument("--layout", choices=("auto", "isaac", "jaka"), default="auto")
+    parser.add_argument("--height-offset", type=float, default=0.0,
+                        help="Translate published world Z once, in meters; default 0 for every layout")
     parser.add_argument("--describe", action="store_true", help="Validate and print JSON without importing ZMQ or opening a socket")
     parser.add_argument("--bind", default="tcp://*:28701")
     parser.add_argument("--hz", type=float, default=50.0, help="Publish frequency; source motion always runs at its own NPZ fps")
@@ -238,7 +246,7 @@ def main(argv=None) -> int:
     if not math.isfinite(args.startup_sleep) or args.startup_sleep < 0:
         parser.error("--startup-sleep must be finite and nonnegative")
     try:
-        motion = load_motion(args.npz, args.layout)
+        motion = load_motion(args.npz, args.layout, height_offset=args.height_offset)
     except (OSError, ValueError, KeyError) as error:
         parser.error(str(error))
     if args.describe:

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
@@ -56,7 +56,7 @@ class SuperNpzPublisherTest(unittest.TestCase):
         np.testing.assert_array_equal(motion.body_pos_w[:, 0], arrays["body_pos_w"][:, 0])
         np.testing.assert_array_equal(motion.body_pos_w[:, 1:], 0.0)
         np.testing.assert_array_equal(motion.body_quat_w[:, 1:, 0], 1.0)
-        self.assertEqual(motion.describe(), dict(layout="isaac", frames=3, fps=50.0, reference_height_offset=0.05))
+        self.assertEqual(motion.describe(), dict(layout="isaac", frames=3, fps=50.0, reference_height_offset=0.0))
 
     def test_named_jaka_does_not_double_reorder_or_override_upper_body(self):
         arrays = self.named_arrays()
@@ -164,6 +164,48 @@ class SuperNpzPublisherTest(unittest.TestCase):
         single = self.write_load(self.arrays(frames=1), "jaka")
         self.assertTrue(publisher.sample_motion(single, 0)[-1])
 
+    def test_explicit_height_offset_is_applied_once_to_sampled_payload(self):
+        arrays = self.named_arrays(bodies=15, base=10)
+        original = {name: value.copy() for name, value in arrays.items()}
+        baseline = self.write_load(arrays)
+        shifted = publisher.load_motion(self.path, height_offset=0.05)
+        stored_positions = shifted.body_pos_w.copy()
+        kwargs = dict(motion_t_ns=1234567890, seq=7, stream_id="offset-test",
+                      source_clock_id="npz-monotonic:offset-test")
+        for elapsed in (0.0, 0.01, shifted.duration_s, 10.0, 0.01):
+            with self.subTest(elapsed=elapsed), patch.object(publisher.time, "time_ns", return_value=9876543210):
+                plain, plain_finished = publisher.make_payload(baseline, elapsed, **kwargs)
+                packet, finished = publisher.make_payload(shifted, elapsed, **kwargs)
+            expected = np.asarray(plain["body_pos_w"])
+            expected[:, 2] += 0.05
+            np.testing.assert_allclose(packet["body_pos_w"], expected, rtol=0, atol=1e-12)
+            # Only world positions change, including placeholder body slots.
+            for field in set(plain) - {"body_pos_w"}:
+                self.assertEqual(packet[field], plain[field])
+            self.assertEqual(finished, plain_finished)
+            np.testing.assert_array_equal(shifted.body_pos_w, stored_positions)
+        self.assertEqual(shifted.reference_height_offset, 0.05)
+        for name, value in arrays.items():
+            np.testing.assert_array_equal(value, original[name])
+        with np.load(self.path, allow_pickle=False) as saved:
+            for name, value in original.items():
+                np.testing.assert_array_equal(saved[name], value)
+        # Reloading without the explicit option must recover the original height.
+        np.testing.assert_array_equal(publisher.load_motion(self.path).body_pos_w, baseline.body_pos_w)
+
+    def test_invalid_height_offsets_rejected_before_socket_import(self):
+        self.write_load(self.arrays())
+        for offset in (np.nan, np.inf, -np.inf, 1.01, -1.01):
+            with self.subTest(offset=offset):
+                with self.assertRaisesRegex(ValueError, "height_offset must be finite"):
+                    publisher.load_motion(self.path, height_offset=offset)
+                error = io.StringIO()
+                with patch.dict(sys.modules, {"zmq": None}), redirect_stderr(error):
+                    with self.assertRaises(SystemExit) as raised:
+                        publisher.main([str(self.path), "--describe", f"--height-offset={offset}"])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn("height_offset must be finite", error.getvalue())
+
     def test_describe_does_not_import_zmq_or_open_socket(self):
         self.write_load(self.arrays())
         stream = io.StringIO()
@@ -172,7 +214,12 @@ class SuperNpzPublisherTest(unittest.TestCase):
             result = publisher.main([str(self.path), "--describe"])
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(stream.getvalue()),
-                         dict(layout="isaac", frames=3, fps=50.0, reference_height_offset=0.05))
+                         dict(layout="isaac", frames=3, fps=50.0, reference_height_offset=0.0))
+        stream = io.StringIO()
+        with patch.dict(sys.modules, {"zmq": None}), redirect_stdout(stream):
+            result = publisher.main([str(self.path), "--describe", "--height-offset=-0.05"])
+        self.assertEqual(result, 0)
+        self.assertEqual(json.loads(stream.getvalue())["reference_height_offset"], -0.05)
 
 
 if __name__ == "__main__":

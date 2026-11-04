@@ -178,8 +178,7 @@ namespace RLController
     extern Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniSuperZmqDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniSuperZmqDefaultRootQuat;
-    extern MotionTimingConfig mJakaMiniSuperZmqTiming;
-    extern double mJakaMiniSuperZmqRootHeightOffset;
+    extern bool mJakaMiniSuperZmqClipTargetPositions;
     extern std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
 
     // OpenHLM 风格 state 发布(ZMQ PUB, JAKA 关节序)
@@ -214,8 +213,9 @@ namespace RLController
     void imu_process(double acc[3], double omega[3], double quat[4]);
     void bind_nlf2_state();
     void update_joint_status(double *q_cmd, double *q, double *qd);
-    // Transactional ankle conversion: never publish half-converted or invalid
-    // feedback. A failure latches ERR_JOINT and disables the actuator interface.
+    // Original ParKine conversion shared by the FSMs and the SDK PD ABI.
+    // A negative forward-solve result zeros that ankle's PR feedback, as in
+    // the legacy ZMQ implementation; dimensions still receive normal checks.
     bool decode_parallel_ankles(double *q, double *qd, const char *context);
     bool decode_parallel_ankle_commands(double *q_cmd, const char *context);
     bool encode_parallel_ankle_targets(std::vector<double> &targets, const char *context);

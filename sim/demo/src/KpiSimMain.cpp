@@ -599,12 +599,10 @@ int main(int argc, char **argv)
             if (RLController::mAngleMapFlag)
             {
                 double a, b;
-                if (::PitchRoll2ABChecked(RLController::mInitTarget[4], RLController::mInitTarget[5], &a, &b) < 0)
-                    throw std::runtime_error("Unreachable left SuperMimic initial ankle target");
+                ::PitchRoll2AB(RLController::mInitTarget[4], RLController::mInitTarget[5], &a, &b);
                 RLController::mInitTarget[4] = a;
                 RLController::mInitTarget[5] = b;
-                if (::PitchRoll2ABChecked(RLController::mInitTarget[16], RLController::mInitTarget[17], &a, &b) < 0)
-                    throw std::runtime_error("Unreachable right SuperMimic initial ankle target");
+                ::PitchRoll2AB(RLController::mInitTarget[16], RLController::mInitTarget[17], &a, &b);
                 RLController::mInitTarget[16] = -a;
                 RLController::mInitTarget[17] = -b;
             }

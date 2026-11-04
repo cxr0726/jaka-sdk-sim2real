@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <string>
 
@@ -8,8 +7,9 @@ class MujocoRobotBackend;
 
 namespace jaka
 {
-// Safety boundary around the opaque SDK's physics step. The SDK ignores the
-// AB2PitchRoll return code; every application physics substep must pass here.
+// Generic finite-state/exception boundary around the opaque SDK physics step.
+// Ankle kinematics are handled by the original ParKine ABI inside the SDK;
+// this wrapper does not impose a second assembly-root or convergence check.
 // The application must be the sole writer/stepper of this backend's mjData.
 class CheckedMujocoPhysics
 {
@@ -23,8 +23,6 @@ public:
 private:
     bool fail(const char *message) noexcept;
     MujocoRobotBackend &backend_;
-    std::array<int, 4> qpos_addresses_{};
-    std::array<int, 4> dof_addresses_{};
     bool stopped_ = false;
     std::string error_;
     std::size_t successful_steps_ = 0;

@@ -8,7 +8,8 @@ ready_timeout="${KPI_SUPER_NPZ_READY_TIMEOUT:-60}"
 publisher_startup_sleep="${KPI_SUPER_NPZ_PUBLISHER_STARTUP_SLEEP:-0.25}"
 npz="${demo_root}/scripts/newsmallstep.npz"
 layout="auto"
-height_offset="${KPI_SUPER_NPZ_HEIGHT_OFFSET:-}"
+height_offset="${KPI_SUPER_NPZ_HEIGHT_OFFSET:-0}"
+target_limits="${KPI_SUPER_NPZ_TARGET_LIMITS:-none}"
 motion_port="${KPI_SUPER_NPZ_MOTION_PORT:-28721}"
 state_port="${KPI_SUPER_NPZ_STATE_PORT:-28731}"
 viewer_enabled="${KPI_SUPER_NPZ_VIEWER:-1}"
@@ -21,21 +22,23 @@ while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --viewer) viewer_enabled=1; shift ;;
     --no-viewer) viewer_enabled=0; shift ;;
-    --npz-layout|--height-offset)
+    --npz-layout|--height-offset|--target-limits)
       option="$1"
       if [[ "$#" -lt 2 ]]; then echo "$option requires a value" >&2; exit 2; fi
       case "$option" in
         --npz-layout) layout="$2" ;;
         --height-offset) height_offset="$2" ;;
+        --target-limits) target_limits="$2" ;;
 
       esac
       shift 2 ;;
     --mode|--direct-fsm|--config|--anchor|--reference-body-index)
       echo "$1 is managed by this SuperMimic launcher" >&2; exit 2 ;;
     -h|--help)
-      echo "Usage: $0 [motion.npz] [--viewer|--no-viewer] [--npz-layout auto|isaac|jaka] [--height-offset meters] [C++ options]"
+      echo "Usage: $0 [motion.npz] [--viewer|--no-viewer] [--npz-layout auto|isaac|jaka] [--height-offset meters] [--target-limits none|real] [C++ options]"
       echo "Starts SuperMimic control first, waits for its valid state, then publishes frame 0 at 50 Hz."
       echo "Defaults: viewer on, source-layout auto, fixed base reference (index 0), local motion/state ports 28721/28731."
+      echo "Height offset defaults to 0 for all NPZ layouts; --height-offset translates the publisher's world Z."
       echo "KPI_SUPER_NPZ_VIEWER=0 disables the viewer; --duration limits simulation time."
       echo "Default XML: Khan_mini_contact.xml (CAD contact envelope, whole-foot mesh)."
       echo "Pass --xml path/to/model.xml to select another contact model."
@@ -67,14 +70,12 @@ fi
 # Describe validates without opening sockets or consuming frames. Named Khan
 # training joints already use JAKA order, unlike the older Isaac NPZ files.
 "$python" "${demo_root}/scripts/pub_motion_super_npz.py" "$npz" \
-  --layout "$layout" --describe > "${replay_dir}/motion_info.json"
+  --layout "$layout" --height-offset="$height_offset" --describe > "${replay_dir}/motion_info.json"
 
 # All replay overrides are local; the remote Pico configuration stays intact.
 "$python" - "${demo_root}/config/KpiConfig.yaml" "${replay_dir}/KpiConfig.base.yaml" \
-  "${replay_dir}/motion_info.json" "$motion_port" "$state_port" \
-  "$height_offset" <<'PY'
+  "${replay_dir}/motion_info.json" "$motion_port" "$state_port" "$target_limits" <<'PY'
 import json
-import math
 import sys
 from pathlib import Path
 import yaml
@@ -85,15 +86,20 @@ if not (1 <= motion_port <= 65535 and 1 <= state_port <= 65535 and motion_port !
 config = yaml.safe_load(Path(sys.argv[1]).read_text())
 info = json.loads(Path(sys.argv[3]).read_text())
 super_config = config["jakaminimimic_superzmq"]
+limit_mode = sys.argv[6]
+if limit_mode not in ("none", "real"):
+    raise SystemExit("--target-limits must be none or real")
+super_config["clip_target_positions"] = limit_mode == "real"
+
 super_config["zmq_connect"] = f"tcp://127.0.0.1:{motion_port}"
 config["state_zmq_bind"] = f"tcp://127.0.0.1:{state_port}"
-height = float(sys.argv[6]) if sys.argv[6] else float(info["reference_height_offset"])
-if not math.isfinite(height) or abs(height) > 1:
-    raise SystemExit("Height offset must be finite and within +/-1 m")
-super_config["reference_height_offset"] = height
+# The legacy SuperMimic buffer has neither a source-clock configuration nor an
+# implicit height transform. The publisher already validated/applied the offset.
+super_config.pop("reference_height_offset", None)
+super_config.pop("clock", None)
 Path(sys.argv[2]).write_text(yaml.safe_dump(config, sort_keys=False))
 print(f"[super_npz_demo] layout={info['layout']} frames={info['frames']} fps={info['fps']} "
-      f"reference=base_link[0] height_offset={height:g}m")
+      f"reference=base_link[0] publisher_height_offset={info['reference_height_offset']:g}m target_limits={limit_mode}")
 PY
 
 publisher_pid=""
@@ -199,7 +205,7 @@ if ! kill -0 "$sim_pid" 2>/dev/null; then
 fi
 
 "$python" -u "${demo_root}/scripts/pub_motion_super_npz.py" "$npz" \
-  --layout "$layout" --bind "$motion_bind" --hz 50 \
+  --layout "$layout" --height-offset="$height_offset" --bind "$motion_bind" --hz 50 \
   --startup-sleep "$publisher_startup_sleep" \
   > "${replay_dir}/publisher.log" 2>&1 &
 publisher_pid=$!

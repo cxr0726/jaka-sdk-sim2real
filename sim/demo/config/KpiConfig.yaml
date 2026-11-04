@@ -184,17 +184,8 @@ jakaminimimic_superzmq:
   future_steps: [0, 1, 2, 3, 4]
   default_root_pos: [0.0, 0.0, 0.65]
   default_root_quat: [1.0, 0.0, 0.0, 0.0]
-  # Existing teleoperation height compensation; set 0 for training NPZ replay.
-  reference_height_offset: 0.05
   imu_body_name: 'base_link'
   use_imu_body: false
-  clock:
-    timestamp_mode: source
-    warmup_s: 0.5
-    min_samples: 8
-    statistics_window_s: 10.0
-    quantile: 0.05
-    max_slew: 0.001
-    stale_timeout_s: 0.5
-    reset_gap_s: 0.5
-    discontinuity_s: 0.25
+  # Original receiver system_clock buffer, base_link[0], no implicit height offset.
+  # Optional A/B: clip physical PR targets using top-level SDK-order limits.
+  clip_target_positions: false

@@ -1,5 +1,4 @@
 #include "RLController.hpp"
-#include "ParallelAnkleSolver.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -8,12 +7,6 @@
 
 namespace RLController
 {
-    namespace
-    {
-        // Owned by the controller thread; left/right never share a seed. SDK
-        // substep validation uses a separate, deterministic stateless solve.
-        std::array<jaka::ParallelAnkleSolver, 2> ankle_observers;
-    }
     bool latch_ankle_fault(const char *context, const char *detail)
     {
         std::fprintf(stderr, "[ankle fault] %s: %s; disabling PD and latching ERR_JOINT\n",
@@ -29,48 +22,35 @@ namespace RLController
 
     void reset_parallel_ankle_observers()
     {
-        for (auto &observer : ankle_observers) observer.reset();
+        // The original ParKine ABI is stateless. Keep this entry point for the
+        // existing FSM initialization sequence; there is no observer to reset.
     }
 
-    static bool decode_ankle_pair(double *q, double *qd, const char *context, bool observation)
+    static bool decode_ankle_pair(double *q, double *qd, const char *context)
     {
         if (!q || !qd || mNumAction < 18)
             return latch_ankle_fault(context, "invalid feedback dimensions");
-        std::array<jaka::AnkleSolveResult, 2> result;
         for (int side = 0; side < 2; ++side)
         {
             const int i = side == 0 ? 4 : 16;
             const double sign = side == 0 ? 1.0 : -1.0;
-            const auto canonical = jaka::solve_parallel_ankle(sign*q[i], sign*q[i+1], sign*qd[i], sign*qd[i+1]);
-            result[side] = observation
-                ? ankle_observers[side].solve(sign*q[i], sign*q[i+1], sign*qd[i], sign*qd[i+1]) : canonical;
-            if (!canonical.ok() || !result[side].ok())
+            double pitch, roll, dpitch, droll, J[2][2];
+            if (AB2PitchRoll(sign*q[i], sign*q[i+1], sign*qd[i], sign*qd[i+1],
+                             &pitch, &roll, &dpitch, &droll, J) < 0)
             {
-                char detail[160];
-                const auto status = !canonical.ok() ? canonical.status : result[side].status;
-                std::snprintf(detail, sizeof(detail), "%s forward solve: %s", side == 0 ? "left" : "right",
-                              jaka::ankle_status_name(status));
-                return latch_ankle_fault(context, detail);
+                // Match the original ZMQ deployment: only this ankle's four
+                // observation values become zero on a negative return code.
+                pitch = roll = dpitch = droll = 0.0;
             }
-            if (std::max(std::abs(result[side].pitch-canonical.pitch),
-                         std::abs(result[side].roll-canonical.roll)) > 1.e-7)
-                return latch_ankle_fault(context, "ambiguous assembly root between observer and SDK");
-            // Share the same canonical measurement with the SDK's internal
-            // stateless C call, after independently checking the warm-start root.
-            result[side] = canonical;
-        }
-        for (int side = 0; side < 2; ++side)
-        {
-            const int i = side == 0 ? 4 : 16;
-            q[i] = result[side].pitch; q[i+1] = result[side].roll;
-            qd[i] = result[side].dpitch; qd[i+1] = result[side].droll;
+            q[i] = pitch; q[i+1] = roll;
+            qd[i] = dpitch; qd[i+1] = droll;
         }
         return true;
     }
 
     bool decode_parallel_ankles(double *q, double *qd, const char *context)
     {
-        return decode_ankle_pair(q, qd, context, true);
+        return decode_ankle_pair(q, qd, context);
     }
 
     bool decode_parallel_ankle_commands(double *q_cmd, const char *context)
@@ -78,7 +58,7 @@ namespace RLController
         if (!q_cmd || mNumAction < 18 || mNumAction > 50)
             return latch_ankle_fault(context, "invalid command dimensions");
         std::array<double, 50> velocity{};
-        return decode_ankle_pair(q_cmd, velocity.data(), context, false);
+        return decode_ankle_pair(q_cmd, velocity.data(), context);
     }
 
     bool encode_parallel_ankle_targets(std::vector<double> &targets, const char *context)
@@ -89,8 +69,7 @@ namespace RLController
         for (int side = 0; side < 2; ++side)
         {
             const int i = side == 0 ? 4 : 16;
-            if (PitchRoll2ABChecked(targets[i], targets[i+1], &a[side], &b[side]) < 0)
-                return latch_ankle_fault(context, side == 0 ? "left target is unreachable" : "right target is unreachable");
+            PitchRoll2AB(targets[i], targets[i+1], &a[side], &b[side]);
         }
         targets[4] = a[0]; targets[5] = b[0];
         targets[16] = -a[1]; targets[17] = -b[1];

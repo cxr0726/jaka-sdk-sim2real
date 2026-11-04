@@ -1,101 +1,236 @@
 #include "ParKine.hpp"
-#include "ParallelAnkleSolver.hpp"
-#include <algorithm>
-#include <cmath>
-#include <limits>
 #include <math.h>
 
-namespace
+//parallel kinematic parameters for jaka pi
+#define L 27.0
+#define x1 7.5
+#define y1 11.5
+#define z1 -40.55
+#define z2 -21.1
+#define x3 -200.0
+#define x4 -117.0
+#define L1 209.0
+#define L2 127.0
+#define ITER_THRESHOLD  1e-10
+#define MAX_ITER  10
+#define PI 3.14159265358979323846
+
+static void R(double pitch, double roll, double Rot[3][3], double Rpitch[3][3], double Rroll[3][3])
 {
-constexpr double L=27., x1=7.5, kRodY1=11.5, z1=-40.55, z2=-21.1;
-constexpr double x3=-200., x4=-117., L1=209., L2=127.;
-constexpr double PI=3.14159265358979323846;
-void invalidate(double *pitch,double *roll,double *dpitch,double *droll,double J[2][2])
-{
-    const double nan=std::numeric_limits<double>::quiet_NaN();
-    if(pitch)*pitch=nan;
-    if(roll)*roll=nan;
-    if(dpitch)*dpitch=nan;
-    if(droll)*droll=nan;
-    if(J)for(int i=0;i<2;++i)for(int j=0;j<2;++j)J[i][j]=nan;
-}
+	const double sp = sin(pitch);
+	const double cp = cos(pitch);
+	const double sr = sin(roll);
+	const double cr = cos(roll);
+
+	Rot[0][0] = cp * cr;
+	Rot[0][1] = -cp * sr;
+	Rot[0][2] = -sp;
+	Rot[1][0] = cr * sp;
+	Rot[1][1] = -sp * sr;
+	Rot[1][2] = cp;
+	Rot[2][0] = -sr;
+	Rot[2][1] = -cr;
+	Rot[2][2] = 0.0;
+
+	Rpitch[0][0] = -Rot[1][0];
+	Rpitch[0][1] = -Rot[1][1];
+	Rpitch[0][2] = -cp;
+	Rpitch[1][0] = Rot[0][0];
+	Rpitch[1][1] = Rot[0][1];
+	Rpitch[1][2] = -sp;
+	Rpitch[2][0] = 0.0;
+	Rpitch[2][1] = 0.0;
+	Rpitch[2][2] = 0.0;
+
+	Rroll[0][0] = Rot[0][1];
+	Rroll[0][1] = -Rot[0][0];
+	Rroll[0][2] = 0.0;
+	Rroll[1][0] = Rot[1][1];
+	Rroll[1][1] = -Rot[1][0];
+	Rroll[1][2] = 0.0;
+	Rroll[2][0] = -cr;
+	Rroll[2][1] = sr;
+	Rroll[2][2] = 0.0;
+
 }
 
-int AB2PitchRoll(double a,double b,double da,double db,double *pitch,double *roll,
-                 double *dpitch,double *droll,double J[2][2])
+static inline double pTRp(const double p1[3], double R[3][3], const double p2[3])
 {
-    if(!pitch||!roll||!dpitch||!droll||!J)
-    {
-        invalidate(pitch,roll,dpitch,droll,J);
-        return static_cast<int>(jaka::AnkleSolveStatus::InvalidInput);
-    }
-    const auto result=jaka::solve_parallel_ankle(a,b,da,db);
-    if(!result.ok())
-    {
-        invalidate(pitch,roll,dpitch,droll,J);
-        return static_cast<int>(result.status);
-    }
-    *pitch=result.pitch;*roll=result.roll;*dpitch=result.dpitch;*droll=result.droll;
-    for(int i=0;i<2;++i)for(int j=0;j<2;++j)J[i][j]=result.J[i][j];
-    return result.iterations;
+	double tmp[3];
+	tmp[0] = p1[0] * R[0][0] + p1[1] * R[1][0] + p1[2] * R[2][0];
+	tmp[1] = p1[0] * R[0][1] + p1[1] * R[1][1] + p1[2] * R[2][1];
+	tmp[2] = p1[0] * R[0][2] + p1[1] * R[1][2] + p1[2] * R[2][2];
+
+	double ret = tmp[0] * p2[0] + tmp[1] * p2[1] + tmp[2] * p2[2];
+	return ret;
 }
 
-int PitchRoll2ABChecked(double pitch,double roll,double *a,double *b)
+static inline double dot3(const double p1[3], const double p2[3])
 {
-    const auto fail=[&](jaka::AnkleSolveStatus status)
-    {
-        const double nan=std::numeric_limits<double>::quiet_NaN();
-        if(a)*a=nan;
-        if(b)*b=nan;
-        return static_cast<int>(status);
-    };
-    if(!a||!b||!std::isfinite(pitch)||!std::isfinite(roll))
-        return fail(jaka::AnkleSolveStatus::InvalidInput);
-    const jaka::AnkleSolveOptions assembly;
-    if(pitch<assembly.pitch_min||pitch>assembly.pitch_max||roll<assembly.roll_min||roll>assembly.roll_max)
-        return fail(jaka::AnkleSolveStatus::OutsideAssembly);
-    const double sp=std::sin(pitch),cp=std::cos(pitch),sr=std::sin(roll),cr=std::cos(roll);
-    double sin_term=-2*L*kRodY1*cr-2*L*x1*sr;
-    double cos_term=2*L*x3+2*L*z1*sp-2*L*x1*cp*cr+2*L*kRodY1*cp*sr;
-    double offset=L*L+x1*x1+x3*x3+kRodY1*kRodY1+z1*z1+z2*z2-2*z1*z2*cp
-        +2*x3*z1*sp-2*x1*x3*cp*cr+2*x3*kRodY1*cp*sr-2*x1*z2*cr*sp
-        +2*kRodY1*z2*sp*sr-L1*L1;
-    auto asin_argument=[](double offset,double sine,double cosine,double &value)
-    {
-        const double denominator=std::hypot(sine,cosine);
-        if(!std::isfinite(denominator)||denominator<=1.e-12)return false;
-        value=-offset/denominator;
-        // Permit only floating-point roundoff at an exactly reachable boundary.
-        constexpr double roundoff=64.*std::numeric_limits<double>::epsilon();
-        if(!std::isfinite(value)||std::abs(value)>1.+roundoff)return false;
-        value=std::clamp(value,-1.,1.);return true;
-    };
-    double argument;
-    if(!asin_argument(offset,sin_term,cos_term,argument))
-        return fail(jaka::AnkleSolveStatus::OutsideAssembly);
-    double qa=-std::asin(argument)-std::atan2(sin_term,cos_term)-PI;
-    if(qa<-PI)qa+=2*PI;
-    sin_term=2*L*x1*sr-2*L*kRodY1*cr;
-    cos_term=2*L*x1*cp*cr-2*L*z1*sp-2*L*x4+2*L*kRodY1*cp*sr;
-    offset=L*L+x1*x1+x4*x4+kRodY1*kRodY1+z1*z1+z2*z2-2*z1*z2*cp
-        +2*x4*z1*sp-2*x1*x4*cp*cr-2*x4*kRodY1*cp*sr-2*x1*z2*cr*sp
-        -2*kRodY1*z2*sp*sr-L2*L2;
-    if(!asin_argument(offset,sin_term,cos_term,argument))
-        return fail(jaka::AnkleSolveStatus::OutsideAssembly);
-    const double qb=std::asin(argument)-std::atan2(sin_term,cos_term);
-    if(!std::isfinite(qa)||!std::isfinite(qb))return fail(jaka::AnkleSolveStatus::InvalidInput);
-    // Analytic inverse branches are only accepted when the checked forward
-    // equation recovers the requested assembly. No projection into reachability.
-    const auto check=jaka::solve_parallel_ankle(qa,qb,0.,0.);
-    if(!check.ok())return fail(check.status);
-    if(std::abs(check.pitch-pitch)>1.e-7||std::abs(check.roll-roll)>1.e-7)
-        return fail(jaka::AnkleSolveStatus::OutsideAssembly);
-    *a=qa;*b=qb;return 0;
+	double ret = p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2];
+	return ret;
 }
 
-void PitchRoll2AB(double pitch,double roll,double *a,double *b)
+static inline int inv2(double J[2][2])
 {
-    (void)PitchRoll2ABChecked(pitch,roll,a,b);
+	double det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+	if (fabs(det) > 1e-5)
+	{
+		double tmp = J[0][0];
+		J[0][0] = J[1][1] / det;
+		J[1][1] = tmp / det;
+		J[0][1] = -J[0][1] / det;
+		J[1][0] = -J[1][0] / det;
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int  AB2PitchRoll(double a, double b, double da, double db, double* pitch, double* roll, double* dpitch, double* droll, double J[2][2])
+{
+	double sum = a + b;
+	if (fabs(sum) > 1.0) // range check
+	{
+		sum = sum > 0.0 ? 1.0 : -1.0;
+		b = sum - a;
+	}
+
+	const double sa = sin(a);
+	const double ca = cos(a);
+	const double sb = sin(b);
+	const double cb = cos(b);
+
+	const double p1[3] = { x1, y1, z1 };
+	const double p2[3] = { x1, -y1, z1 };
+	const double p3[3] = {x3 + L * sa, z2, -L * ca};
+	const double p4[3] = {x4 - L * sb, z2, L * cb};
+
+	const double p1_dot_p3 = (dot3(p1,p1) + dot3(p3,p3) - L1 * L1) / 2.0;
+	const double p2_dot_p4 = (dot3(p2,p2) + dot3(p4,p4) - L2 * L2) / 2.0;
+
+	*pitch = (a - b) / 2.0;
+	*roll = -(a + b) / 2.0;
+	double Rot[3][3], Rpitch[3][3], Rroll[3][3];
+	R(*pitch, *roll, Rot, Rpitch, Rroll);
+
+	double Jac[2][2],y[2], delta[2];
+	y[0] = p1_dot_p3 - pTRp(p3, Rot, p1);
+	y[1] = p2_dot_p4 - pTRp(p4, Rot, p2);
+
+	Jac[0][0] = pTRp(p3, Rpitch, p1);
+	Jac[0][1] = pTRp(p3, Rroll, p1);
+	Jac[1][0] = pTRp(p4, Rpitch, p2);
+	Jac[1][1] = pTRp(p4, Rroll, p2);
+	if (!inv2(Jac))
+	{
+		delta[0] = Jac[0][0] * y[0] + Jac[0][1] * y[1];
+		delta[1] = Jac[1][0] * y[0] + Jac[1][1] * y[1];
+	}
+	else
+	{
+		//singular
+		*dpitch = 0.0;
+		*droll = 0.0;
+		J[0][0] = 1.0;
+		J[0][1] = 0.0;
+		J[1][0] = 0.0;
+		J[1][1] = 1.0;
+		return -1;
+	}
+	int count = 0;
+
+	while ((delta[0]*delta[0]+delta[1]*delta[1]) > ITER_THRESHOLD && count < MAX_ITER)
+	{
+		*pitch += delta[0];
+		*roll += delta[1];
+
+		R(*pitch, *roll, Rot, Rpitch, Rroll);
+
+		y[0] = p1_dot_p3 - pTRp(p3, Rot, p1);
+		y[1] = p2_dot_p4 - pTRp(p4, Rot, p2);
+
+		Jac[0][0] = pTRp(p3, Rpitch, p1);
+		Jac[0][1] = pTRp(p3, Rroll, p1);
+		Jac[1][0] = pTRp(p4, Rpitch, p2);
+		Jac[1][1] = pTRp(p4, Rroll, p2);
+
+		if (!inv2(Jac))
+		{
+			delta[0] = Jac[0][0] * y[0] + Jac[0][1] * y[1];
+			delta[1] = Jac[1][0] * y[0] + Jac[1][1] * y[1];
+		}
+		else
+		{
+			//singular
+			*dpitch = 0.0;
+			*droll = 0.0;
+			J[0][0] = 1.0;
+			J[0][1] = 0.0;
+			J[1][0] = 0.0;
+			J[1][1] = 1.0;
+			return -1;
+		}
+		count++;
+	}
+
+	const double p3_dot[3] = {L * ca, 0.0, L * sa};
+	const double p4_dot[3] = {-L * cb, 0.0, -L * sb};
+
+	double M[2][2];
+	M[0][0] = pTRp(p3_dot, Rot, p1) - dot3(p3, p3_dot);
+	M[1][1] = pTRp(p4_dot, Rot, p2) - dot3(p4, p4_dot);
+	M[0][1] = M[1][0] = 0.0;
+	J[0][0] = -(Jac[0][0] * M[0][0] + Jac[0][1] * M[1][0]);
+	J[0][1] = -(Jac[0][0] * M[0][1] + Jac[0][1] * M[1][1]);
+	J[1][0] = -(Jac[1][0] * M[0][0] + Jac[1][1] * M[1][0]);
+	J[1][1] = -(Jac[1][0] * M[0][1] + Jac[1][1] * M[1][1]);
+
+	*dpitch = J[0][0] * da + J[0][1] * db;
+	*droll = J[1][0] * da + J[1][1] * db;
+
+	return count;
+}
+
+void PitchRoll2AB(double pitch,double roll, double* a,double* b)
+{
+    const double sin_pitch=sin(pitch);
+    const double cos_pitch=cos(pitch);
+    const double sin_roll=sin(roll);
+    const double cos_roll=cos(roll);
+
+    double sin_term=- 2*L*y1*cos_roll - 2*L*x1*sin_roll;
+    double cos_term=2*L*x3 + 2*L*z1*sin_pitch - 2*L*x1*cos_pitch*cos_roll + 2*L*y1*cos_pitch*sin_roll;
+    double offset=  L*L + x1*x1 + x3*x3 + y1*y1 + z1*z1 + z2*z2 - 2*z1*z2*cos_pitch + 2*x3*z1*sin_pitch - 2*x1*x3*cos_pitch*cos_roll \
+        + 2*x3*y1*cos_pitch*sin_roll - 2*x1*z2*cos_roll*sin_pitch + 2*y1*z2*sin_pitch*sin_roll - L1*L1;
+
+
+    double phi=atan2(sin_term,cos_term);
+    double sin_val=-offset/sqrt(sin_term*sin_term+cos_term*cos_term);
+    if (sin_val>1.0)
+        sin_val=1.0;
+    else if (sin_val<-1.0)
+        sin_val=-1.0;
+    *a=-asin(sin_val)-phi-PI;
+    if(*a<-PI)
+        (*a)+=2*PI;
+
+    sin_term=2*L*x1*sin_roll - 2*L*y1*cos_roll;
+    cos_term=2*L*x1*cos_pitch*cos_roll- 2*L*z1*sin_pitch - 2*L*x4 + 2*L*y1*cos_pitch*sin_roll;
+    offset=L*L + x1*x1 + x4*x4 + y1*y1 + z1*z1 + z2*z2 - 2*z1*z2*cos_pitch + 2*x4*z1*sin_pitch - 2*x1*x4*cos_pitch*cos_roll \
+        - 2*x4*y1*cos_pitch*sin_roll - 2*x1*z2*cos_roll*sin_pitch - 2*y1*z2*sin_pitch*sin_roll-L2*L2;
+
+    phi=atan2(sin_term,cos_term);
+    sin_val=-offset/sqrt(sin_term*sin_term+cos_term*cos_term);
+    if (sin_val>1.0)
+        sin_val=1.0;
+    else if (sin_val<-1.0)
+        sin_val=-1.0;
+    *b=asin(sin_val)-phi;
+
+    return;
 }
 
 void Q2RPY(const double* quat,double* rpy)
@@ -108,7 +243,7 @@ void Q2RPY(const double* quat,double* rpy)
     double t0 = +2.0 * (w * x + y * z);
     double t1 = +1.0 - 2.0 * (x * x + y * y);
     rpy[0] = atan2(t0, t1);
-    
+
 
     t0 = 2.0 * (w * y - z * x);
     if(t0>1.0)
@@ -116,7 +251,7 @@ void Q2RPY(const double* quat,double* rpy)
     else if(t0<-1.0)
         t0=-1.0;
     rpy[1] = asin(t0);
-    
+
     t0 = 2.0 * (w * z + x * y);
     t1 = 1.0 - 2.0 * (y * y + z * z);
     rpy[2] = atan2(t0, t1);
@@ -153,12 +288,12 @@ static inline void nlf2_step(void* obj,double x,double v)
 
 	tmp->x0+=tmp->v0*tmp->Ts;
 	double temp=tmp->v0+fhan*tmp->Ts;
-	
+
 	if(temp>tmp->v_max)
 		temp=tmp->v_max;
 	else if(temp<-tmp->v_max)
 		temp=-tmp->v_max;
-	
+
 	tmp->v0=temp;
 
     return;

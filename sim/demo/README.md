@@ -2,6 +2,10 @@
 
 这个 demo 用于验证客户 SDK 包可以接入真机部署控制器的 LOCO 策略逻辑，并通过 MuJoCo SDK 后端提供仿真反馈。
 
+2026-11-04：SuperMimic 已恢复旧墙钟 motion buffer，SDK/策略共享的脚踝解算恢复原版。
+目标角限幅可通过 NPZ 启动器 `--target-limits none|real` 对照，默认关闭。
+当前行为和验证见 [SuperMimic 回退与限幅测试](docs/legacy_supermimic_rollback.md)。
+
 并联踝解算、故障处理及默认 CAD 接触模型见
 [ankle and contact deployment](docs/ankle_and_contact_deployment.md)。默认模型为
 `sdk/assets/khan_mini/Khan_mini_contact.xml`；旧 XML 保留用于几何回归。

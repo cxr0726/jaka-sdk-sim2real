@@ -75,10 +75,10 @@ set(KPI_DEMO_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/FSMMimicJakaMiniSuperZmq.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/SuperMimicDeployment.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/RealtimeMotionBuffer.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/LegacyRealtimeMotionBuffer.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/StatePublisher.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/GlobalVars.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ParKine.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/ParallelAnkleSolver.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/CheckedMujocoPhysics.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/Util.cpp"
 )
@@ -127,8 +127,8 @@ target_link_libraries(KpiMujocoSimDemo
 )
 
 # The packaged SDK calls these public C symbols through its PLT. Export the
-# checked implementations explicitly so SDK PD and policy feedback share the
-# same geometry, rather than resolving the SDK's legacy Newton implementation.
+# restored original implementations so SDK PD and policy feedback use the
+# same original ankle equations and solver behavior.
 if(UNIX AND NOT APPLE)
   target_link_options(KpiMujocoSimDemo PRIVATE
     "-Wl,--export-dynamic-symbol=AB2PitchRoll"
@@ -158,12 +158,12 @@ install(TARGETS KpiMujocoSimDemo
 include(CTest)
 if(BUILD_TESTING)
   add_executable(ParallelAnkleSolverTest tests/test_parallel_ankle_solver.cpp
-    src/ParallelAnkleSolver.cpp src/ParKine.cpp)
+    src/ParKine.cpp)
   target_include_directories(ParallelAnkleSolverTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  add_test(NAME parallel_ankle_solver COMMAND ParallelAnkleSolverTest)
+  add_test(NAME legacy_parallel_ankle_solver COMMAND ParallelAnkleSolverTest)
 
   add_executable(CheckedMujocoPhysicsTest tests/test_checked_mujoco_physics.cpp
-    src/CheckedMujocoPhysics.cpp src/ParallelAnkleSolver.cpp src/ParKine.cpp)
+    src/CheckedMujocoPhysics.cpp src/ParKine.cpp)
   ament_target_dependencies(CheckedMujocoPhysicsTest rclcpp sensor_msgs trajectory_msgs)
   target_include_directories(CheckedMujocoPhysicsTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${_sdk_include}" "${_sdk_kpi_include}" "${_sdk_mujoco_include}")
@@ -175,7 +175,7 @@ if(BUILD_TESTING)
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_sym.xml")
 
   add_executable(AnkleFaultHandlingTest tests/test_ankle_fault_handling.cpp
-    src/Util.cpp src/ParallelAnkleSolver.cpp src/ParKine.cpp)
+    src/Util.cpp src/ParKine.cpp)
   ament_target_dependencies(AnkleFaultHandlingTest rclcpp sensor_msgs trajectory_msgs)
   target_include_directories(AnkleFaultHandlingTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${_sdk_include}" "${_sdk_kpi_include}" "${_sdk_mujoco_include}" "${_demo_onnx_include}")
@@ -191,6 +191,18 @@ if(BUILD_TESTING)
   add_test(NAME contact_model COMMAND ContactModelTest
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_sym.xml"
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_contact.xml")
+
+  add_executable(LegacyRealtimeMotionBufferTest
+    tests/test_legacy_realtime_motion_buffer.cpp src/LegacyRealtimeMotionBuffer.cpp)
+  target_include_directories(LegacyRealtimeMotionBufferTest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs/zmq/include")
+  target_link_libraries(LegacyRealtimeMotionBufferTest Eigen3::Eigen zmq Threads::Threads)
+  target_link_directories(LegacyRealtimeMotionBufferTest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs/zmq/lib")
+  set_target_properties(LegacyRealtimeMotionBufferTest PROPERTIES BUILD_RPATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs/zmq/lib")
+  add_test(NAME supermimic_legacy_motion_buffer COMMAND LegacyRealtimeMotionBufferTest)
 
   add_executable(SourceTimelineTest tests/test_source_timeline.cpp)
   target_include_directories(SourceTimelineTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -222,7 +234,7 @@ if(BUILD_TESTING)
   target_link_libraries(SuperMimicDeploymentTest Eigen3::Eigen onnxruntime)
   set_target_properties(SuperMimicDeploymentTest PROPERTIES BUILD_RPATH "${_demo_onnx_libdir}")
   add_test(NAME supermimic_deployment COMMAND SuperMimicDeploymentTest
-    "${CMAKE_CURRENT_SOURCE_DIR}/export/khan_mini/ckpt_0100000.onnx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/export/khan_mini/ckpt_0100000_new.onnx"
     "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/latest_m62k_pico_base.onnx")
 endif()
 
