@@ -3,7 +3,8 @@
 !/.gitignore
 !/sim/
 !/real/
-
+# !/level-0/
+# !/ref_thirdparty/
 # Keep local Git metadata, environments, caches and build outputs out of snapshots.
 .git/
 .venv*/

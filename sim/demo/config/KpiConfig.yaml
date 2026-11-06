@@ -176,8 +176,8 @@ jakaminimimic_zmq_fixwrist:
 # SuperMimic export: joint order, default angles, action scales and PD gains
 # come from ONNX metadata; the model anchor is base_link (index 0).
 jakaminimimic_superzmq:
-  policy_path: '../export/khan_mini/ckpt_0100000_new.onnx'
-  zmq_connect: 'tcp://10.5.5.120:28701'
+  policy_path: 'policy_mimic/ckpt_0080000_khan_mixed_dr_v6.onnx'
+  zmq_connect: 'tcp://127.0.0.1:28701'
   zmq_hwm: 1
   dt_s: 0.02
   tolerance_s: 0.04
