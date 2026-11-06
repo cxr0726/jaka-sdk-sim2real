@@ -7,8 +7,12 @@ Run from `sim/demo`:
 ```
 
 The independent `jakaminimimic_superzmq` section of `config/KpiConfig.yaml`
-selects its ONNX through `policy_path` and the existing remote Pico
-endpoint. `--direct-fsm jakaminimimic_superzmq` also works. The controller
+selects its ONNX through `policy_path` and its receiver endpoint through
+`zmq_connect`. The current checked-in SuperMimic endpoint is
+`tcp://127.0.0.1:28701`; see the [two-terminal playback commands](../README.md#supermimic两个终端分别启动控制器和-npz-发布器)
+to start control first and publish `motion_pico.npz` separately.
+For live Pico input, set this mode's endpoint to the publisher's address.
+`--direct-fsm jakaminimimic_superzmq` also works. The controller
 waits for enabled joints before entering the new FSM; it does not reuse the
 START/BACK combinations assigned to the older modes.
 
@@ -30,7 +34,7 @@ frame the publisher continues static heartbeats; closing the viewer or Ctrl+C
 cleans up this run's processes.
 
 Replay uses a generated local config, motion port 28721 and state port 28731.
-Logs are under `build/super_npz_replay/`. Source YAML and the remote endpoint
+Logs are under `build/super_npz_replay/`. Source YAML and its configured endpoint
 are not rewritten. The legacy buffer adds no height offset. All NPZ layouts
 default to zero offset; explicit `--height-offset` translates publisher world Z
 once, before sampling. `--target-limits none|real` selects the optional physical

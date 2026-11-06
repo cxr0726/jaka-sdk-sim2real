@@ -96,6 +96,50 @@ SuperMimic 本机 NPZ 回放（先启动控制器，再发布动作）：
 也支持带 joint/body names 的 Khan 训练 NPZ。SuperMimic 固定使用 base_link[0]；
 普通 ZMQ 和 fixwrist 模式可通过各自的 `reference_body_index` 配置切换 0/13。
 
+### SuperMimic：两个终端分别启动控制器和 NPZ 发布器
+
+实际启动 mode 名为 `jakaminimimic_superzmq`。当前
+`config/KpiConfig.yaml` 中该模式的 `zmq_connect` 是
+`tcp://127.0.0.1:28701`，与下面发布器的 `--bind` 对应。
+
+**终端 1：先启动 C++ SuperMimic 控制器。**
+
+```bash
+cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
+./scripts/run_demo.sh --viewer --realtime --duration 0 \
+  --mode jakaminimimic_superzmq
+```
+
+等待编译、初始化完成，看到 `[FSMJakaMiniSuperZmq] action_dim=27` 和
+`[StatePublisher] bound to` 后，再执行终端 2 的命令。`--duration 0`
+表示控制器持续运行；去掉 `--viewer` 可无界面运行，保留 `--realtime`。
+
+**终端 2：发布 `motion_pico.npz`，从第 0 帧单次播放。**
+
+```bash
+cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
+.venv-pub-motion/bin/python scripts/pub_motion_super_npz.py scripts/motion_pico.npz \
+  --layout isaac --bind tcp://127.0.0.1:28701 --hz 50 \
+  --height-offset 0 --startup-sleep 0.25
+```
+
+本仓库的 `motion_pico.npz` 有 577 帧、50 Hz，首帧至末帧为 11.52 秒；
+它没有关节名字，使用旧 Isaac 顺序，因此显式指定 `--layout isaac`。
+SuperMimic 专用发布器会将其转换为 JAKA wire 关节顺序，并发送
+base_link[0] 参考。带 `joint_names/body_names` 的训练文件可用
+`--layout auto`。`--height-offset 0` 保留原始参考高度。
+
+发布器默认不循环，结束时打印 `finished; holding final pose with live timestamps`，
+然后继续以 50 Hz 发布最后一帧。结束测试时，分别在两个终端按 Ctrl+C；
+手动双终端方式不会自动关闭另一个进程。仅停止发布器时，旧 buffer 仍保持最后参考。
+本节使用 28701；一键 `run_super_npz_demo.sh` 则默认使用独立的 28721 端口。
+
+上述控制器命令按当前配置加载 `ckpt_0080000_khan_mixed_dr_v6.onnx`，
+默认 XML 为 `../sdk/assets/khan_mini/Khan_mini_contact.xml`，
+目标角限幅由 `jakaminimimic_superzmq.clip_target_positions` 决定，当前为 `false`。
+如需其他碰撞模型，在终端 1 追加 `--xml /absolute/path/model.xml`。
+`--target-limits none|real` 是一键 NPZ 启动器的选项，不是 `run_demo.sh` 的选项。
+
 更详细的主流程和客户策略接入说明见：
 
 ```text
