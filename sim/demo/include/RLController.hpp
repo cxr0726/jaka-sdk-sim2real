@@ -146,11 +146,11 @@ namespace RLController
     extern int mJakaMiniZmqHwm;
     extern double mJakaMiniZmqDt;
     extern double mJakaMiniZmqTolerance;
+    extern float mJakaMiniZmqRootHeightOffset;
     extern std::vector<int> mJakaMiniZmqFutureSteps;
     extern Eigen::VectorXf mJakaMiniZmqDefaultJointPos;
     extern Eigen::Vector3f mJakaMiniZmqDefaultRootPos;
     extern Eigen::Quaternionf mJakaMiniZmqDefaultRootQuat;
-    extern MotionTimingConfig mJakaMiniZmqTiming;
     extern int mJakaMiniZmqReferenceBodyIndex;
 
     // jaka-mini mimic ZMQ fixwrist settings (23-DoF)

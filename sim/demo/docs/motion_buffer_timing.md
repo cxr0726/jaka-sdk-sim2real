@@ -1,7 +1,13 @@
 # Motion buffer timing
 
-The active modes are `jakaminimimic_zmq` and `jakaminimimic_zmq_fixwrist`.
-Their `clock` configuration is in [KpiConfig.yaml](../config/KpiConfig.yaml).
+As of 2026-11-06 this source-clock implementation is active only in
+`jakaminimimic_zmq_fixwrist`. Its `clock` configuration is in
+[KpiConfig.yaml](../config/KpiConfig.yaml). Ordinary `jakaminimimic_zmq` now
+uses `LegacyRealtimeMotionBuffer`, as SuperMimic already does: local wall-clock
+insertion/query, immediate first-packet readiness and endpoint hold. Its
+`root_height_offset` defaults to the historical +0.05 m; SuperMimic keeps zero.
+The descriptions below of ordinary ZMQ source-clock behavior document its
+previous implementation, not its current deployment path.
 
 `warmup_s` starts at the first fully validated and accepted motion packet,
 not at controller startup. With no motion input, `SourceTimeline::observe()`
@@ -42,9 +48,9 @@ delay do not require a combined 620 ms wait.
 generation. Undeclared legacy streams latch `publish_t_ns`. Explicit `publish`
 and `arrival` modes force those axes. Missing selected fields never cause a
 per-packet clock-domain fallback. New sessions, accepted-packet gaps and
-detected discontinuities rebuffer with a new generation. Both active FSMs use
-one atomic window per tick and rebuild alignment/history when a new generation
-becomes ready.
+detected discontinuities rebuffer with a new generation. The source-clock
+fixwrist FSM uses one atomic window per tick and rebuilds alignment/history
+when a new generation becomes ready.
 
 Theoretical improvement over local receipt timestamps is reduced trajectory
 time distortion from variable processing/network/parse delays. It does not

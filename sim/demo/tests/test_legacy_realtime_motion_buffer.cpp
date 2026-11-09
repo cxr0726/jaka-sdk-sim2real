@@ -81,6 +81,15 @@ int main()
                 require(frame.dof_pos[j] == expected_map[j] + .125f,
                         "legacy MuJoCo-to-Isaac joint permutation changed");
         }
+        // Ordinary ZMQ retains its historical +5cm correction explicitly;
+        // default construction above must keep SuperMimic at zero correction.
+        LegacyRealtimeMotionBuffer lifted(names, "", 1, 20*ms, 40*ms, {0,1,2,3,4},
+            default_q, {0.f,0.f,.65f}, Eigen::Quaternionf::Identity(), .05f);
+        require(lifted.get_obs()[0].root_pos_w.z() == .65f,
+                "height correction changed the empty-buffer standing reference");
+        lifted.append_payload(packet.dump());
+        require(std::abs(lifted.get_obs()[0].root_pos_w.z() - .667f) < 1.e-6f,
+                "configured received-reference height correction was not applied");
         // Missing, reversed, invalid-typed publication clocks and sequence IDs
         // are deliberately irrelevant to this original arrival-clock backend.
         packet["publish_t_ns"] = "ignored"; packet["seq"] = -1;
@@ -133,7 +142,7 @@ int main()
         buffer.get_obs();
         require(buffer.ready() && buffer._timestamps_ns.size() == 1 && buffer.get_obs()[0].root_pos_w.x() == 40.f,
                 "legacy cleanup must retain/hold the final received frame");
-        std::cout << "Actual legacy buffer: arrival clock, immediate ready, body[0]/no height offset, joint order, "
+        std::cout << "Actual legacy buffer: arrival clock, immediate ready, body[0]/optional height offset, joint order, "
                      "qpos prefix, query phase, interpolation and terminal hold passed; no sockets/hardware\n";
         return 0;
     }

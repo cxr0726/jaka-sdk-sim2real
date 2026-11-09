@@ -6,6 +6,11 @@
 目标角限幅可通过 NPZ 启动器 `--target-limits none|real` 对照，默认关闭。
 当前行为和验证见 [SuperMimic 回退与限幅测试](docs/legacy_supermimic_rollback.md)。
 
+2026-11-06：普通 `jakaminimimic_zmq` 也恢复 `LegacyRealtimeMotionBuffer`，
+按接收机本地墙钟插入和查询，不使用发布端时间戳和预充。保留原有参考高度补偿
+`jakaminimimic_zmq.root_height_offset: 0.05`（米）；与 SuperMimic 比较相同参考时设为 `0.0`。
+该模式固定 `base_link[0]`，`fixwrist` 仍使用 source-clock buffer。
+
 并联踝解算、故障处理及默认 CAD 接触模型见
 [ankle and contact deployment](docs/ankle_and_contact_deployment.md)。默认模型为
 `sdk/assets/khan_mini/Khan_mini_contact.xml`；旧 XML 保留用于几何回归。
@@ -93,8 +98,27 @@ SuperMimic 本机 NPZ 回放（先启动控制器，再发布动作）：
 ./scripts/run_super_npz_demo.sh scripts/newsmallstep.npz
 ```
 
+指定新 BONES 100k 策略，并使用实机式目标角限幅：
+
+```bash
+./scripts/run_super_npz_demo.sh scripts/motion_pico2.npz \
+  --policy config/policy_mimic/ckpt_0100000_bones.onnx \
+  --viewer --duration 0 --target-limits real --height-offset 0
+```
+
+替换动作文件为 `scripts/motion_pico3.npz` 或 `scripts/dance1_subject2.npz`
+即可播放其他动作。`--policy` 仅覆盖本次生成的回放配置，不修改源 YAML；
+也可用 `KPI_SUPER_NPZ_POLICY` 指定。未指定时仍使用 YAML 中的策略。
+
+sim 的 SuperMimic 从 ONNX metadata 读取默认关节角、action scale、关节顺序及
+Kp/Kd，并覆盖 YAML 仿真增益；PR 踝增益也随模型更新。
+BONES 100k 为 pitch `Kp=80,Kd=2`、roll `Kp=20,Kd=1`。
+普通 ZMQ 则使用 YAML 的 PD。ONNX 的 armature 等训练资产说明不会自动写入
+MuJoCo 模型；实际 armature、碰撞体仍由所选 XML 决定，默认 XML 不变。
+
 也支持带 joint/body names 的 Khan 训练 NPZ。SuperMimic 固定使用 base_link[0]；
-普通 ZMQ 和 fixwrist 模式可通过各自的 `reference_body_index` 配置切换 0/13。
+普通 ZMQ 也固定 `base_link[0]`（非 0 配置会报错）；fixwrist 可通过
+`reference_body_index` 配置切换 0/13。
 
 ### SuperMimic：两个终端分别启动控制器和 NPZ 发布器
 
@@ -184,14 +208,13 @@ demo/build/KpiConfig.demo.yaml
 KPI_NPZ_VIEWER=0 ./scripts/run_npz_demo.sh scripts/newsmallstep.npz --duration 18
 ```
 
-默认仍打开 viewer。`jakaminimimic_zmq.clock` 的源时间映射在两种方式下均生效；
-接收首个有效包后默认预充约 0.5 秒。完整时间轴、配置和数值说明见
-[motion buffer 说明](docs/motion_buffer_timing.md)。
+默认仍打开 viewer。普通 ZMQ 当前使用本地墙钟 buffer，首个有效包立即可用，
+不读取 `publish_t_ns`/`motion_t_ns`，没有 0.5 秒预充；默认参考仍增加 5 cm。
+fixwrist 的源时间映射与预充说明见 [motion buffer 说明](docs/motion_buffer_timing.md)。
 
-当前默认 `clock.timestamp_mode: source`：新Pico发布器声明 `motion_t_ns`，
-在读取XR后、GMR前以发布机单调时钟记录；`publish_t_ns`仍在GMR后、准备发送时生成。
-没有源声明的旧NPZ/record报文固定采用publish轴。详细字段与暂停语义见
-[发送端时间协议](docs/publisher_protocol.md)。
+新 Pico 发布器仍发送时间协议字段，可与 fixwrist 源时间轴接收端配合：
+`motion_t_ns` 在读取 XR 后、GMR 前记录，`publish_t_ns` 在 GMR 后、准备发送时生成。
+详细字段与暂停语义见 [发送端时间协议](docs/publisher_protocol.md)。
 
 也可以将文件替换为 `scripts/motion_pico2.npz` 或 `scripts/motion_pico3.npz`。
 回放使用 `tcp://127.0.0.1:28701` 和独立生成的配置，保留 NPZ 原始全身关节，
@@ -199,7 +222,7 @@ KPI_NPZ_VIEWER=0 ./scripts/run_npz_demo.sh scripts/newsmallstep.npz --duration 1
 编译和控制器初始化期间不会提前消耗动作帧。
 播完后控制器继续运行并保持最后一帧参考，终端会明确提示。
 关闭 viewer 或按 Ctrl+C 会清理发布端和本次控制器进程。
-原始配置中的远程 Pico 地址仍然保留。
+启动器使用生成的本机回放配置；直接控制器部署使用所选 YAML 的 `zmq_connect`。
 控制器输出同时显示在终端并保存到 `build/npz_replay/sim.log`，
 发布日志位于 `build/npz_replay/publisher.log`。
 状态消息表示 ZMQ 控制循环已经运行，不等于物理站姿已经完成稳定收敛。

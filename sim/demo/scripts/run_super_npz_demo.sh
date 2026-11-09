@@ -10,6 +10,7 @@ npz="${demo_root}/scripts/newsmallstep.npz"
 layout="auto"
 height_offset="${KPI_SUPER_NPZ_HEIGHT_OFFSET:-0}"
 target_limits="${KPI_SUPER_NPZ_TARGET_LIMITS:-none}"
+policy="${KPI_SUPER_NPZ_POLICY:-}"
 motion_port="${KPI_SUPER_NPZ_MOTION_PORT:-28721}"
 state_port="${KPI_SUPER_NPZ_STATE_PORT:-28731}"
 viewer_enabled="${KPI_SUPER_NPZ_VIEWER:-1}"
@@ -22,32 +23,41 @@ while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --viewer) viewer_enabled=1; shift ;;
     --no-viewer) viewer_enabled=0; shift ;;
-    --npz-layout|--height-offset|--target-limits)
+    --npz-layout|--height-offset|--target-limits|--policy)
       option="$1"
       if [[ "$#" -lt 2 ]]; then echo "$option requires a value" >&2; exit 2; fi
       case "$option" in
         --npz-layout) layout="$2" ;;
         --height-offset) height_offset="$2" ;;
         --target-limits) target_limits="$2" ;;
+        --policy) policy="$2" ;;
 
       esac
       shift 2 ;;
     --mode|--direct-fsm|--config|--anchor|--reference-body-index)
       echo "$1 is managed by this SuperMimic launcher" >&2; exit 2 ;;
     -h|--help)
-      echo "Usage: $0 [motion.npz] [--viewer|--no-viewer] [--npz-layout auto|isaac|jaka] [--height-offset meters] [--target-limits none|real] [C++ options]"
+      echo "Usage: $0 [motion.npz] [--policy model.onnx] [--viewer|--no-viewer] [--npz-layout auto|isaac|jaka] [--height-offset meters] [--target-limits none|real] [C++ options]"
       echo "Starts SuperMimic control first, waits for its valid state, then publishes frame 0 at 50 Hz."
       echo "Defaults: viewer on, source-layout auto, fixed base reference (index 0), local motion/state ports 28721/28731."
       echo "Height offset defaults to 0 for all NPZ layouts; --height-offset translates the publisher's world Z."
       echo "KPI_SUPER_NPZ_VIEWER=0 disables the viewer; --duration limits simulation time."
       echo "Default XML: Khan_mini_contact.xml (CAD contact envelope, whole-foot mesh)."
       echo "Pass --xml path/to/model.xml to select another contact model."
+      echo "--policy (or KPI_SUPER_NPZ_POLICY) overrides only this replay's SuperMimic model; otherwise uses KpiConfig.yaml."
       exit 0 ;;
     *) forward_args+=("$1"); shift ;;
   esac
 done
 set -- "${forward_args[@]}"
 npz="$(realpath "$npz")"
+if [[ -n "$policy" ]]; then
+  if [[ ! -f "$policy" ]]; then
+    echo "Policy file not found: $policy" >&2
+    exit 1
+  fi
+  policy="$(realpath "$policy")"
+fi
 state_connect="tcp://127.0.0.1:${state_port}"
 motion_bind="tcp://127.0.0.1:${motion_port}"
 
@@ -74,7 +84,7 @@ fi
 
 # All replay overrides are local; the remote Pico configuration stays intact.
 "$python" - "${demo_root}/config/KpiConfig.yaml" "${replay_dir}/KpiConfig.base.yaml" \
-  "${replay_dir}/motion_info.json" "$motion_port" "$state_port" "$target_limits" <<'PY'
+  "${replay_dir}/motion_info.json" "$motion_port" "$state_port" "$target_limits" "$policy" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -90,6 +100,11 @@ limit_mode = sys.argv[6]
 if limit_mode not in ("none", "real"):
     raise SystemExit("--target-limits must be none or real")
 super_config["clip_target_positions"] = limit_mode == "real"
+if sys.argv[7]:
+    policy = Path(sys.argv[7]).resolve()
+    if not policy.is_file():
+        raise SystemExit(f"Policy file not found: {policy}")
+    super_config["policy_path"] = str(policy)
 
 super_config["zmq_connect"] = f"tcp://127.0.0.1:{motion_port}"
 config["state_zmq_bind"] = f"tcp://127.0.0.1:{state_port}"
@@ -99,7 +114,8 @@ super_config.pop("reference_height_offset", None)
 super_config.pop("clock", None)
 Path(sys.argv[2]).write_text(yaml.safe_dump(config, sort_keys=False))
 print(f"[super_npz_demo] layout={info['layout']} frames={info['frames']} fps={info['fps']} "
-      f"reference=base_link[0] publisher_height_offset={info['reference_height_offset']:g}m target_limits={limit_mode}")
+      f"reference=base_link[0] publisher_height_offset={info['reference_height_offset']:g}m target_limits={limit_mode} "
+      f"policy={super_config['policy_path']}")
 PY
 
 publisher_pid=""

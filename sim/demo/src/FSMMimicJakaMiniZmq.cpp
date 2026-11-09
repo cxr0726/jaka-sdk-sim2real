@@ -1,4 +1,5 @@
 #include "RLController.hpp"
+#include "LegacyRealtimeMotionBuffer.hpp"
 #include "StatePublisher.hpp"
 
 #include <algorithm>
@@ -65,8 +66,7 @@ namespace RLController
     static double zmq_omega[3], zmq_acc[3], zmq_quat[4];
     static bool zmq_play;
     static bool zmq_first_step;
-    static uint64_t zmq_last_generation;
-    static MotionWindow::Status zmq_last_buffer_status;
+    static bool zmq_last_ready;
     static int zmq_frame_stack;
     static Eigen::Quaternionf zmq_align_quat(1.0f, 0.0f, 0.0f, 0.0f);
     static std::vector<float> zmq_single_obs;
@@ -84,7 +84,7 @@ namespace RLController
     static double zmq_timing_action_max = 0.0;
     static double zmq_timing_total_max = 0.0;
 
-    static std::unique_ptr<RealtimeMotionBuffer> zmq_motion_buffer;
+    static std::unique_ptr<LegacyRealtimeMotionBuffer> zmq_motion_buffer;
 
     // OpenHLM 风格 state 发布器(50Hz tick 内联、非阻塞; 部署序→JAKA 序重排)
     static std::unique_ptr<StatePublisher> zmq_state_pub;
@@ -244,7 +244,7 @@ namespace RLController
     }
 
     static inline std::array<float, kJakaMiniZMQCommandDim> zmq_construct_command(
-        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, LegacyRealtimeMotionBuffer::kFutureSteps> &frames)
     {
         std::array<float, kJakaMiniZMQCommandDim> cmd{};
         const Eigen::Vector3f anchor_pos = frames[0].root_pos_w;
@@ -278,7 +278,7 @@ namespace RLController
     }
 
     static inline std::array<float, kJakaMiniZMQAnchorOriDim> zmq_construct_anchor_orientation(
-        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, LegacyRealtimeMotionBuffer::kFutureSteps> &frames)
     {
         const Eigen::Quaternionf robot_quat_now = zmq_robot_quat_from_imu();
         std::array<float, kJakaMiniZMQAnchorOriDim> ori{};
@@ -351,7 +351,7 @@ namespace RLController
     }
 
     static inline void zmq_pack_history(
-        const std::array<InterpolatedFrame, RealtimeMotionBuffer::kFutureSteps> &frames)
+        const std::array<InterpolatedFrame, LegacyRealtimeMotionBuffer::kFutureSteps> &frames)
     {
         const auto command = zmq_construct_command(frames);
         const auto anchor_ori = zmq_construct_anchor_orientation(frames);
@@ -465,34 +465,27 @@ namespace RLController
         }
 
         const auto t_obs_start = std::chrono::steady_clock::now();
-        const MotionWindow window = zmq_motion_buffer->get_observation();
-        const bool new_stream = window.reference_ready() && window.generation != zmq_last_generation;
-        if (zmq_first_step || window.status != zmq_last_buffer_status || new_stream)
+        const bool buffer_ready = zmq_motion_buffer->ready();
+        const auto frames = zmq_motion_buffer->get_obs();
+        const bool reset_alignment = zmq_first_step || (!zmq_last_ready && buffer_ready);
+        // Preserve the original local-time deployment behavior: initialize the
+        // state history at entry, then align yaw once more on the first packet.
+        // First packet arrival must not reset previous actions or robot history.
+        if (zmq_first_step)
         {
-            std::printf("[motion window] generation=%llu status=%s recv_age=%.1fms clamp=%d/%d\n",
-                        static_cast<unsigned long long>(window.generation),
-                        RealtimeMotionBuffer::status_name(window.status),
-                        window.latest_recv_age_ns / 1.e6, window.clamped_low, window.clamped_high);
-        }
-        // BUFFERING uses the configured standing reference, or the last consumed
-        // reference after a reset. STALE holds one reference pose. Continue the
-        // balance policy explicitly; neither status is treated as fresh motion.
-        // Rebuild yaw, previous action and history once a NEW generation is ready.
-        if (zmq_first_step || new_stream)
-        {
-            zmq_initialize_alignment(window.frames[0]);
+            zmq_initialize_alignment(frames[0]);
             zmq_initialize_last_action();
             zmq_construct_single_obs();
             zmq_init_history();
         }
         else
         {
+            if (reset_alignment) zmq_initialize_alignment(frames[0]);
             zmq_construct_single_obs();
             zmq_push_history();
         }
-        zmq_pack_history(window.frames);
-        if (new_stream) zmq_last_generation = window.generation;
-        zmq_last_buffer_status = window.status;
+        zmq_pack_history(frames);
+        zmq_last_ready = buffer_ready;
         zmq_first_step = false;
         const auto t_obs_end = std::chrono::steady_clock::now();
 
@@ -566,6 +559,12 @@ namespace RLController
 
     void FSMMimicJakaMiniZmqEnter(FSMSTATE from)
     {
+        if (mJakaMiniZmqReferenceBodyIndex != 0)
+        {
+            std::fprintf(stderr, "[FSMJakaMiniZmq] legacy motion buffer requires reference_body_index=0 (base_link)\n");
+            mErrCode = ERR_INIT;
+            return;
+        }
         if (!zmq_resolve_policy_layout())
         {
             mErrCode = ERR_INIT;
@@ -577,8 +576,7 @@ namespace RLController
         StateRun = &fsm_mimic_jaka_mini_zmq_run;
         zmq_play = false;
         zmq_first_step = true;
-        zmq_last_generation = 0;
-        zmq_last_buffer_status = MotionWindow::Status::Buffering;
+        zmq_last_ready = false;
 
         zmq_timing_step_count = 0;
         zmq_timing_obs_sum = 0.0;
@@ -600,7 +598,7 @@ namespace RLController
             return;
         }
 
-        zmq_motion_buffer = std::make_unique<RealtimeMotionBuffer>(
+        zmq_motion_buffer = std::make_unique<LegacyRealtimeMotionBuffer>(
             mJointNames,
             mJakaMiniZmqConnect,
             mJakaMiniZmqHwm,
@@ -611,8 +609,7 @@ namespace RLController
                                                    : Eigen::VectorXf::Zero(mNumAction),
             mJakaMiniZmqDefaultRootPos,
             mJakaMiniZmqDefaultRootQuat,
-            mJakaMiniZmqTiming,
-            mJakaMiniZmqReferenceBodyIndex);
+            mJakaMiniZmqRootHeightOffset);
 
         // OpenHLM 风格 state 发布器(绑定 :28711; 失败仅告警, 不影响控制)
         zmq_state_pub = std::make_unique<StatePublisher>(mStateZmqBind);

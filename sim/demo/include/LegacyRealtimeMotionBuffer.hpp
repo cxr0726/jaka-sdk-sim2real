@@ -31,7 +31,8 @@ namespace RLController
             const std::vector<int> &future_steps,
             const Eigen::VectorXf &default_joint_pos,
             const Eigen::Vector3f &default_root_pos,
-            const Eigen::Quaternionf &default_root_quat);
+            const Eigen::Quaternionf &default_root_quat,
+            float root_height_offset = 0.0f);
 
         ~LegacyRealtimeMotionBuffer();
 
@@ -81,6 +82,7 @@ namespace RLController
         Eigen::Vector3f _default_root_pos;
         Eigen::Quaternionf _default_root_quat;
         Eigen::Quaternionf _identity_quat;
+        float _root_height_offset;
 
         // Receive frequency diagnostics
         uint64_t _recv_count = 0;

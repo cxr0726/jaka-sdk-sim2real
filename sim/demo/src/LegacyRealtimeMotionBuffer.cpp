@@ -46,7 +46,8 @@ namespace RLController
         const std::vector<int> &future_steps,
         const Eigen::VectorXf &default_joint_pos,
         const Eigen::Vector3f &default_root_pos,
-        const Eigen::Quaternionf &default_root_quat)
+        const Eigen::Quaternionf &default_root_quat,
+        float root_height_offset)
         : _num_joints(static_cast<int>(joint_names.size())),
           _dt_ns(dt_ns),
           _tolerance_ns(tolerance_ns),
@@ -58,11 +59,16 @@ namespace RLController
            _default_root_pos(default_root_pos),
            _default_root_quat(normalize_quat(default_root_quat)),
            _identity_quat(Eigen::Quaternionf::Identity()),
+           _root_height_offset(root_height_offset),
            _recv_freq_last_time(std::chrono::steady_clock::now())
     {
         if (dt_ns <= 0)
         {
             throw std::invalid_argument("dt_ns must be positive");
+        }
+        if (!std::isfinite(_root_height_offset))
+        {
+            throw std::invalid_argument("root_height_offset must be finite");
         }
         if (static_cast<int>(_future_steps.size()) != kFutureSteps)
         {
@@ -279,9 +285,7 @@ namespace RLController
             throw std::runtime_error("body_pos_w or body_quat_w is empty");
         }
 
-        // Hard-coded as 3 which is waist_yaw_link in Isaac Lab order
-        // const auto &root_pos_vec = body_pos_w[13];
-        // const auto &root_quat_vec = body_quat_w[13];
+        // Legacy deployment uses the base_link anchor in JAKA wire order.
         const auto &root_pos_vec = body_pos_w[0];
         const auto &root_quat_vec = body_quat_w[0];
 
@@ -290,7 +294,8 @@ namespace RLController
             throw std::runtime_error("Root body pos/quat has wrong dimension");
         }
 
-        Eigen::Vector3f root_pos(root_pos_vec[0], root_pos_vec[1], root_pos_vec[2]);
+        Eigen::Vector3f root_pos(root_pos_vec[0], root_pos_vec[1],
+                                 root_pos_vec[2] + _root_height_offset);
         Eigen::Quaternionf root_quat(root_quat_vec[0], root_quat_vec[1],
                                      root_quat_vec[2], root_quat_vec[3]);
         root_quat = normalize_quat(root_quat);

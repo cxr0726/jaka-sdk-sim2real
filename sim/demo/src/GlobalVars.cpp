@@ -131,11 +131,11 @@ namespace RLController
     int mJakaMiniZmqHwm = 1;
     double mJakaMiniZmqDt = 0.02;
     double mJakaMiniZmqTolerance = 0.04;
+    float mJakaMiniZmqRootHeightOffset = 0.05f;
     std::vector<int> mJakaMiniZmqFutureSteps;
     Eigen::VectorXf mJakaMiniZmqDefaultJointPos;
     Eigen::Vector3f mJakaMiniZmqDefaultRootPos = Eigen::Vector3f::Zero();
     Eigen::Quaternionf mJakaMiniZmqDefaultRootQuat = Eigen::Quaternionf::Identity();
-    MotionTimingConfig mJakaMiniZmqTiming;
     int mJakaMiniZmqReferenceBodyIndex = 0;
 
     // jaka-mini mimic ZMQ fixwrist settings
@@ -427,8 +427,11 @@ namespace RLController
         {
             mJakaMiniZmqEnabled = true;
             YAML::Node cfg = mYamlNode["jakaminimimic_zmq"];
-            mJakaMiniZmqTiming = load_motion_timing(cfg);
             mJakaMiniZmqReferenceBodyIndex = load_reference_body_index(cfg);
+            mJakaMiniZmqRootHeightOffset = cfg["root_height_offset"]
+                ? cfg["root_height_offset"].as<float>() : 0.05f;
+            if (!std::isfinite(mJakaMiniZmqRootHeightOffset))
+                throw std::runtime_error("JakaMini ZMQ root_height_offset must be finite");
 
             std::string zmq_policy_path = cfg["policy_path"] ?
                 cfg["policy_path"].as<std::string>() : "";
@@ -490,8 +493,9 @@ namespace RLController
                 mJakaMiniZmqDefaultRootQuat.normalize();
             }
 
-            std::printf("JakaMini ZMQ mimic config loaded: zmq=%s, dt=%.3f, tol=%.3f\n",
-                        mJakaMiniZmqConnect.c_str(), mJakaMiniZmqDt, mJakaMiniZmqTolerance);
+            std::printf("JakaMini ZMQ mimic config loaded: zmq=%s, dt=%.3f, tol=%.3f, local clock, height offset=%.3fm\n",
+                        mJakaMiniZmqConnect.c_str(), mJakaMiniZmqDt, mJakaMiniZmqTolerance,
+                        mJakaMiniZmqRootHeightOffset);
         }
 
         /********************* jaka-mini mimic ZMQ fixwrist config ************************/

@@ -119,25 +119,17 @@ mimic_command_path: "mimic_command/motion_modified.csv"
 state_zmq_bind: "tcp://*:28711"
 # jaka-mini mimic ZMQ (actual Pico sender: pico_pub_copy.py)
 jakaminimimic_zmq:
-  # JAKA wire body order: 0=base_link, 13=waist_yaw_Link.
+  # Legacy local-receipt clock buffer; fixed base_link[0] anchor.
+  # publish_t_ns/source timestamps and clock warmup are not used in this mode.
   reference_body_index: 0
-  policy_path: "policy_mimic/latest_m62k_pico_base.onnx"
-  zmq_connect: "tcp://10.5.5.120:28701"
+  # Preserve this mode's original +5 cm Pico reference compensation.
+  # Set to 0.0 for an equal-reference-height comparison with SuperMimic.
+  root_height_offset: 0.05
+  policy_path: "policy_mimic/latest_77k_new.onnx"
+  zmq_connect: "tcp://127.0.0.1:28701"
   zmq_hwm: 1
   dt_s: 0.02
   tolerance_s: 0.04
-  # Latch the sender-declared source clock. Undeclared legacy streams use publish.
-  # "publish"/"arrival" explicitly force those axes for compatibility/comparison.
-  clock:
-    timestamp_mode: source
-    warmup_s: 0.5
-    min_samples: 8
-    statistics_window_s: 10.0
-    quantile: 0.05
-    max_slew: 0.001
-    stale_timeout_s: 0.5
-    reset_gap_s: 0.5
-    discontinuity_s: 0.25
   future_steps: [0, 1, 2, 3, 4]
   # Value is written into ZMQ so joint_pos should be in Isaac Lab order
   default_joint_pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.57, 0.0, -1.57, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.57, 1.57, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3]

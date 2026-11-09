@@ -24,7 +24,20 @@ valid state from that process, then starts the publisher at frame zero:
 ./scripts/run_super_npz_demo.sh /path/to/training/walk1_subject1.npz
 # Bounded run without a viewer:
 KPI_SUPER_NPZ_VIEWER=0 ./scripts/run_super_npz_demo.sh scripts/newsmallstep.npz --duration 15
+# Select the BONES 100k actor for this replay without editing the source YAML:
+./scripts/run_super_npz_demo.sh scripts/motion_pico2.npz \
+  --policy config/policy_mimic/ckpt_0100000_bones.onnx \
+  --viewer --duration 0 --target-limits real --height-offset 0
 ```
+
+`--policy model.onnx` (or `KPI_SUPER_NPZ_POLICY`) selects the actor only in the
+generated replay YAML. Without an override the source YAML still chooses the
+model. The simulation SuperMimic path imports metadata `default_joint_pos`,
+`action_scale`, `joint_names`, `joint_stiffness` and `joint_damping`; its main
+copies the model's PD into both regular and physical PR gains before creating
+the SDK backend. The BONES 100k model uses ankle pitch 80/2 and roll 20/1.
+Ordinary ZMQ keeps its YAML gains. XML dynamics such as armature, passive
+damping, friction and contact geometry are not imported from ONNX metadata.
 
 The publisher preserves all 27 joints and automatically distinguishes legacy
 Isaac NPZ arrays from named Khan training NPZ arrays. Training joint/body
@@ -50,7 +63,8 @@ inference and trajectory structure. As of 2026-11-04, SuperMimic uses a separate
 `system_clock` insertion/query, immediate readiness, base slot 0, and no implicit
 height offset. Entry initializes yaw/action/history; first readiness realigns yaw
 without clearing the running history. There are no source generations or warmup.
-Other ZMQ modes retain their existing source-clock buffers.
+Ordinary ZMQ also uses the legacy local-clock buffer as of 2026-11-06;
+fixwrist retains its existing source-clock buffer.
 
 ## Model contract and joint order
 
