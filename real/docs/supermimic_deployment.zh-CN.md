@@ -1,12 +1,29 @@
 # Khan SuperMimic 实机迁移
 
+2026-11-09 当前配置：默认模型切换为 BONES 100k，专用 PR PD 改为 pitch `80/2`、roll `20/1`，roll 虚拟目标边界改为 `[-0.7,0.7] rad`。顶层27轴换算后的 MIT 参数、策略关节顺序、观测尺度和旧 buffer/并联解算路径保持。以下历史迁移、回退和闭环比较记录使用当时的模型及参数，不能当作新配置的实机运动验证。
+
 2026-11-03。迁移前基线为上层仓库 `eefd5ed`。该仓库只跟踪 `sim/`、`real/` 和根 `.gitignore`；`sim/.git` 原历史保留，不将 sim 记录为 gitlink。虚拟环境、Git 元数据、构建/缓存/日志及日期命名的个人录制目录忽略。
 
 本次按用户要求，实机 SuperMimic 恢复使用原 `RealtimeMotionBuffer` 和原 `AB2PitchRoll` 并联正解/失败置零行为。此前迁移的源时间映射、generation、预充、参考额外加高和修复版并联求解器不再接入实机 SuperMimic；sim 不作此回退。关节映射、策略观测/输出结构和 YAML 参数来源保留。回退后的验证结果单独记录；文末旧结果归为历史证据。
 
 ## 模型及 YAML 参数来源
 
-新增 `FSMMimicJakaMiniSuperZmq.cpp`、`FSM_JAKAMINIMIMIC_SUPERZMQ=13`，布局沿用 sim。模型为 `config/policy_mimic/ckpt_0100000_new_supermimic.onnx`，SHA256 `67877118414560c830491e43fdeb405011a222aecf75310be368c8d1cbef4c6b`，输入 float32 `obs[1,620]`，输出 `actions[1,27]`。
+新增 `FSMMimicJakaMiniSuperZmq.cpp`、`FSM_JAKAMINIMIMIC_SUPERZMQ=13`，布局沿用 sim。当前默认模型为 `config/policy_mimic/ckpt_0100000_bones.onnx`，SHA256 `6f6dfb923bf6597572fed243f3bfe364a0635b50409896429a9ed19d917307e8`，输入 float32 `obs[1,620]`，输出 `actions[1,27]`。
+
+同时附带 `config/policy_mimic/ckpt_0120000_bones_delay.onnx` 作为可选模型。两者的 actor 部署协议、关节顺序、默认角、尺度和标称 PR PD 相同；选用120k时只需把 `jakaminimimic_superzmq.policy_path` 改成 `policy_mimic/ckpt_0120000_bones_delay.onnx`。`delay` 是训练版本标记，不需要在部署端额外增加软件延迟，也不代表两个策略的输出或运动效果相同。
+
+120k SHA256 为 `59827831e16ae6c5d1139a161aa350261b39326814fbb6767f42fe7dadf19746`；sim、real 中的同名模型逐字节相同。两模型均为 float32 `obs[batch,620] -> actions[batch,27]`，完整部署 schema 一致：JAKA 关节顺序、base_link、20ms 控制周期、5帧未来/逐项历史、action scale `.5`、gyro `.5`、joint velocity `.2`。120k 的训练合同改进了执行器延迟队列的 reset 预置，不增加 actor 输入或 hidden state。两模型的 `reference_height_offset` 均为0；训练合同中的 `reset_root_z_offset=.05` 是实际机器人 reset 加高，不能转换成部署参考加高。
+
+### 2026-11-09 当前配置验证
+
+- real 完整构建及6项 CTest、sim 完整构建及10项 CTest 全部通过。
+- 两模型各自通过实际 real 加载器和 `KpiConfigInit`/warmup 检查，确认新 PR PD、roll ±.7 及原27轴 MIT 参数按 YAML 生效；120k 使用仅更改模型路径的诊断配置。
+- 每模型对 Pico2、Pico3、dance 各回放500个相同输入 tick，共1500 tick；当前 sim/real FSM 的620维观测、action/history、原始目标和按新 real 边界裁切后的目标，独立检查最大误差为0。该比较是每个模型在两套部署实现之间的对照，不是要求两个不同模型输出相同。
+- 两模型各完成一次18.02秒 Pico2 无 viewer 实时 ZMQ 仿真，各898个策略 tick，`err=0`，记录值全部有限且未倾倒。两次使用默认 XML、发布端高度补偿0、sim目标限幅 `none`；新 real ±.7 边界在前述配置初始化和离线目标计算中验证，此仿真不代表新 real 限幅下的实机闭环效果。
+
+上述 real 测试均未构造硬件接口或下发实机指令。协议与计算兼容性通过，不代表已经验证实机运动稳定性。
+
+### 参数来源
 
 实机 `SuperMimicDeployment` **不读取 ONNX metadata**，仅检查 tensor 的数量、名称、类型、shape。控制参数及关节顺序都来自 YAML，导出 JSON 不是运行时依赖。
 
@@ -16,20 +33,20 @@
 | 顶层 `default_angles` | SDK序 q0，按名字重排；用于 q−q0 和输出目标 |
 | 顶层 `init_target` | 原实机初始化姿态，不被模型覆盖 |
 | 顶层 `kp/kd` | 用户已转换的实机 MIT 参数，保留全100 / 100或200 |
-| 顶层 `kp_pitch_roll/kd_pitch_roll` | 保留 `[100,50,100,50]` / `[2,.5,2,.5]` |
+| 顶层 `kp_pitch_roll/kd_pitch_roll` | BONES 专用 PR PD：`[80,20,80,20]` / `[2,1,2,1]`；左pitch/roll、右pitch/roll |
 | 新小节 `joint_names` | 模型输入输出的27关节策略顺序，显式配置 |
 | 新小节 `action_scale` | 当前 .5，支持标量或27维策略序数组；缺省继承顶层值 |
 | 新小节 `ang_vel_scale/dof_vel_scale` | 当前 .5/.2；旧模式顶层 .2/.05 保持 |
 
 例如右 hip pitch 为 policy6→SDK12，左 shoulder roll 为 policy14→SDK7。参考从 buffer 的 Isaac 顺序独立按名字 gather，输出按名字 scatter，历史动作保持策略序。更换模型时可用离线 checker 检查手工配置的顺序。
 
-27关节的 policy/SDK/buffer/wire 索引、默认角及实际控制通道核对表见 [supermimic_joint_contract.json](supermimic_joint_contract.json)；四踝区分全局 YAML 增益与真正启用的 MIT/PR 两路参数。
+27关节的 policy/SDK/buffer/wire 索引、默认角及实际控制通道核对表见迁移时保存的 [supermimic_joint_contract.json](supermimic_joint_contract.json)；其中旧 PR 增益属于历史快照，当前增益以上述 YAML 为准。四踝区分全局 YAML 增益与真正启用的 MIT/PR 两路参数。
 
-实机 `FSMInit.cpp` 未修改：`angle_map=0` 时四踝普通 MIT gains 原本就设为 `(0,5)`，然后启用专用 PR PD；没有复制 sim 的 `(0,0)`，没有将训练 PD 覆盖到实机。
+实机 `FSMInit.cpp` 未修改：`angle_map=0` 时四踝普通 MIT gains 原本就设为 `(0,5)`，然后启用专用 PR PD；没有复制 sim 的 `(0,0)`，也不从 ONNX 自动覆盖实机参数。当前 PR PD 是在 YAML 中显式更新的 BONES 参数。
 
 原始 action 不做 ±5 裁剪，不加 tanh/平滑。目标为 `q0 + action_scale * raw_action`，按实机既有物理关节位置限幅约束，发送 PR 目标；历史保存 raw action。**实机 SuperMimic 只支持 `angle_map=0` 的专用 PR PD 路径**。非零值进入时故障断使能，运行中若值被改变也不发目标。旧模式的 angle_map 行为不变。
 
-新增顶层四维 `pitch_roll_down_limit/up_limit`，以 YAML 明确保存此前代码写死的物理 PR 限位 `[-.52,-.35,-.52,-.35]` / `[.61,.35,.61,.35]`；当前 `angle_map=0` 实际限幅不变，其余关节使用 `down_limit/up_limit`。本次离线验证覆盖当前 `angle_map=0` 配置。
+顶层四维 `pitch_roll_down_limit/up_limit` 在 `angle_map=0` 时控制虚拟 PR PD 目标边界，当前为 `[-.52,-.70,-.52,-.70]` / `[.61,.70,.61,.70]`；pitch 保留原边界，roll 从原先 `±.35` 放宽到 `±.70`。这不会更改机械行程或控制器内部限制。其余关节仍使用 `down_limit/up_limit`。这些专用 PR 增益及边界是全局配置，也影响使用同一执行路径的普通 ZMQ 等模式。
 
 ## 观测和实时参考
 
@@ -50,7 +67,17 @@ cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
 ./scripts/run_demo.sh --viewer --duration 0 --mode jakaminimimic_superzmq
 ```
 
-`--viewer` 自动启用实时节拍；无 viewer 时将其替换为 `--realtime`。默认 XML 为 `sim/sdk/assets/khan_mini/Khan_mini_contact.xml`（当前完整脚部凸包），由 `KPI_MUJOCO_XML` 环境变量或显式 `--xml` 覆盖。默认策略来自 sim YAML 的 `../export/khan_mini/ckpt_0100000_new.onnx`，连接 `tcp://10.5.5.120:28701`；SDK 根目录也可由 `KPI_MUJOCO_SIM_SDK_ROOT` 改写。
+`--viewer` 自动启用实时节拍；无 viewer 时将其替换为 `--realtime`。默认 XML 为 `sim/sdk/assets/khan_mini/Khan_mini_contact.xml`（当前完整脚部凸包），由 `KPI_MUJOCO_XML` 环境变量或显式 `--xml` 覆盖。当前 sim YAML 仍选择 `config/policy_mimic/ckpt_0080000_khan_mixed_dr_v6.onnx`，连接 `tcp://127.0.0.1:28701`；本次 real 的模型切换不会修改这两个 sim 默认值。SDK 根目录也可由 `KPI_MUJOCO_SIM_SDK_ROOT` 改写。
+
+指定 BONES120k 并启动本机 NPZ 播放可使用（先启动控制器，再发送动作）：
+
+```bash
+./scripts/run_super_npz_demo.sh scripts/motion_pico2.npz \
+  --policy config/policy_mimic/ckpt_0120000_bones_delay.onnx \
+  --viewer --duration 0 --target-limits real --height-offset 0
+```
+
+这里 `--target-limits real` 启用的是 **sim 自己的目标限幅**，并不读取 `real/config/KpiConfig.yaml`。当前 sim 的 roll 边界仍为 `±0.35`，本次 real 已改为 `±0.70`；因此这条命令与新 real 配置的目标限幅并不完全相同。`--policy` 仅修改该次生成的回放配置，`--height-offset 0` 明确禁止发布端额外加高。
 
 ### PICO 实时发送端
 
@@ -61,7 +88,7 @@ cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
 python scripts/pico_pub_copy.py --robot jaka --bind 'tcp://*:28701'
 ```
 
-脚本默认 robot=g1，必须指定 `--robot jaka`，其 GMR 目标映射为 jaka_mini。默认发布30Hz，C++策略仍50Hz并由 buffer 插值；需要50Hz时可加 `--publish-hz 50`，实际频率受XR/GMR耗时影响。发送设备须对应接收配置的10.5.5.120；`bind *` 只表示监听发送设备所有网卡，不会改变它的IP。
+脚本默认 robot=g1，必须指定 `--robot jaka`，其 GMR 目标映射为 jaka_mini。默认发布30Hz，C++策略仍50Hz并由 buffer 插值；需要50Hz时可加 `--publish-hz 50`，实际频率受XR/GMR耗时影响。real 当前接收配置指向发送设备 `10.5.5.120`；sim 若跨机器接入，也需将自己的 `zmq_connect` 从本机地址改成发送设备地址。`bind *` 只表示监听发送设备所有网卡，不会改变它的IP。
 
 脚本启动后首次 PICO X 前静默；控制器已就位并进入策略后按X开始遥操作，后续X暂停/恢复，暂停仍发布保持姿态和新 motion_t_ns。PICO A 在本脚本中只切换采集标志，不直接调用实机断使能；实机结束按 real 框架接收的遥控 A。不要加 `--skip-retarget`，该调试分支产生 NaN 关节，不能用于策略部署。
 
@@ -71,7 +98,7 @@ python scripts/pico_pub_copy.py --robot jaka --bind 'tcp://*:28701'
 
 ### Buffer 选择与旧版区别
 
-当前实机三个模式均使用原 `RealtimeMotionBuffer`。实机目录的 `SuperRealtimeMotionBuffer`、`SourceTimeline` 实现随本次回退移除；sim 保持现有源时间映射实现。
+当前实机三个模式均使用原 `RealtimeMotionBuffer`。实机目录的 `SuperRealtimeMotionBuffer`、`SourceTimeline` 实现随本次回退移除；当前 sim 普通 ZMQ 和 Super 也使用本地时间轴的 `LegacyRealtimeMotionBuffer`，仅 sim fixwrist 保留源时间映射实现。
 
 | real 模式 | 从 IDLE 进入 | 使用的 buffer |
 | --- | --- | --- |
@@ -146,8 +173,8 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 python tests/check_supermimic_yaml.py \
-  --model config/policy_mimic/ckpt_0100000_new_supermimic.onnx \
-  --config config/KpiConfig.yaml --baseline-ref eefd5ed
+  --model config/policy_mimic/ckpt_0100000_bones.onnx \
+  --config config/KpiConfig.yaml
 ```
 
 `tests/check_supermimic_runtime.py` 可用训练环境和 PT 独立核对诊断 tape；只有离线脚本读取 metadata 检查训练契约，运行时不读取。原始记录在忽略的 build-supermimic，简要结果为 `supermimic_validation.json`。

@@ -71,16 +71,15 @@ kd: [100, 100, 100, 100, 100, 100, 100, 100, 200, 200, 200, 200,
      100, 100, 100, 100, 100, 100, 100, 100, 200, 200, 200, 200,
      100, 200, 200]
 
-# torque map pd gain settings
-kp_pitch_roll: [100, 50, 100, 50]
-# kp_pitch_roll: [100, 40, 100, 40]
-kd_pitch_roll: [2.0, 0.5, 2.0, 0.5]
-# kd_pitch_roll: [2.0, 1.0, 2.0, 1.0]
+# Dedicated PR PD gains for BONES; these are separate from the converted MIT gains above.
+# Order: left pitch, left roll, right pitch, right roll.
+kp_pitch_roll: [80, 20, 80, 20]
+kd_pitch_roll: [2.0, 1.0, 2.0, 1.0]
 
-# Physical PR command bounds for angle_map=0, in left pitch/roll, right pitch/roll
-# order. These preserve the limits previously hardcoded in GlobalVars.cpp.
-pitch_roll_down_limit: [-0.52, -0.35, -0.52, -0.35]
-pitch_roll_up_limit: [0.61, 0.35, 0.61, 0.35]
+# Virtual PR PD target bounds for angle_map=0, in left pitch/roll, right pitch/roll
+# order. Roll targets are widened to +/-0.7; this does not change mechanical travel.
+pitch_roll_down_limit: [-0.52, -0.70, -0.52, -0.70]
+pitch_roll_up_limit: [0.61, 0.70, 0.61, 0.70]
 
 ang_vel_scale: 0.2
 dof_pos_scale: 1.0
@@ -137,10 +136,10 @@ jakaminimimic_zmq_fixwrist:
   default_root_pos: [0.0, 0.0, 0.65]
 
 # Khan SuperMimic real deployment. Joint/control parameters are YAML-owned.
-# Global default_angles/init_target/kp/kd/kp_pitch_roll/kd_pitch_roll stay in SDK
-# deployment order; do not replace the converted hardware gains with training PD.
+# Global defaults and gains stay in SDK deployment order. The 27-axis kp/kd
+# remain converted hardware MIT gains; dedicated PR gains are configured above.
 jakaminimimic_superzmq:
-  policy_path: "policy_mimic/ckpt_0100000_new_supermimic.onnx"
+  policy_path: "policy_mimic/ckpt_0100000_bones.onnx"
   observation_layout: isaac_khan
   # Actor input/output order (JAKA), distinct from the global SDK joint_names.
   joint_names: [
