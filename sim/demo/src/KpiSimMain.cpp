@@ -4,6 +4,11 @@
 
 #if KPI_MUJOCO_HAS_VIEWER
 #include "MujocoViewer.hpp"
+#include "ViewerSnapshot.hpp"
+// The packaged SDK provides GLFW's binary and forward-declares GLFWwindow,
+// but does not ship glfw3.h. These two stable C ABI functions need no new SDK.
+extern "C" void glfwSwapInterval(int interval);
+extern "C" GLFWwindow *glfwGetCurrentContext(void);
 #endif
 
 #include <atomic>
@@ -11,6 +16,7 @@
 #include <cmath>
 #include <csignal>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -29,7 +35,6 @@ std::atomic<bool> g_run{true};
 void signal_handler(int)
 {
     g_run = false;
-    RLController::mRLThreadRunFlag = false;
 }
 
 struct Args
@@ -39,11 +44,14 @@ struct Args
     std::string mode{"idle"};
     std::string direct_fsm;
     std::string log_path;
+    std::string timing_log_path;
     double duration{20.0};
     double simulation_dt{0.001};
     int control_decimation{20};
     bool realtime{false};
     bool viewer{false};
+    bool viewer_vsync{false};
+    double viewer_fps{60.0};
     double loco_forward{0.0};
     double loco_lateral{0.0};
     double loco_yaw{0.0};
@@ -67,6 +75,9 @@ void print_usage(const char *argv0)
         << "  --control-decimation <n>            default: 20\n"
         << "  --log <csv>                         optional MuJoCo feedback/target log\n"
         << "  --viewer                            open MuJoCo GLFW viewer\n"
+        << "  --viewer-fps <fps>                  display rate, default: 60; control is independent\n"
+        << "  --viewer-vsync                      enable display VSync (default: off)\n"
+        << "  --timing-log <csv>                  control intervals, work and realtime lag\n"
         << "  --realtime                          sleep to approximate real time\n"
         << "  --loco-forward <value>              LOCO left-stick Y, default 0\n"
         << "  --loco-lateral <value>              LOCO right-stick X, default 0\n"
@@ -139,6 +150,22 @@ bool parse_args(int argc, char **argv, Args &args)
             const char *v = need_value("--log");
             if (!v) return false;
             args.log_path = v;
+        }
+        else if (key == "--timing-log")
+        {
+            const char *v = need_value("--timing-log");
+            if (!v) return false;
+            args.timing_log_path = v;
+        }
+        else if (key == "--viewer-fps")
+        {
+            const char *v = need_value("--viewer-fps");
+            if (!v) return false;
+            args.viewer_fps = std::atof(v);
+        }
+        else if (key == "--viewer-vsync")
+        {
+            args.viewer_vsync = true;
         }
         else if (key == "--loco-forward")
         {
@@ -227,6 +254,11 @@ bool parse_args(int argc, char **argv, Args &args)
     if (args.control_decimation <= 0 || args.simulation_dt <= 0.0)
     {
         std::cerr << "simulation dt and control decimation must be positive\n";
+        return false;
+    }
+    if (!std::isfinite(args.viewer_fps) || args.viewer_fps < 1.0 || args.viewer_fps > 240.0)
+    {
+        std::cerr << "viewer fps must be between 1 and 240\n";
         return false;
     }
     const std::string selected_mode = args.direct_fsm.empty() ? args.mode : args.direct_fsm;
@@ -687,11 +719,17 @@ int main(int argc, char **argv)
         auto backend = std::make_shared<MujocoRobotBackend>(sim_cfg);
         jaka::CheckedMujocoPhysics checked_physics(*backend);
 #if KPI_MUJOCO_HAS_VIEWER
+        std::unique_ptr<jaka::ViewerSnapshot> viewer_snapshot;
         MujocoViewer viewer;
-        if (args.viewer && !viewer.open(backend->model(), backend->data(), "KpiDeployReal MuJoCo C++ Sim"))
+        if (args.viewer)
         {
-            std::cerr << "[kpi_mujoco_sim] failed to open viewer" << std::endl;
-            return 1;
+            viewer_snapshot = std::make_unique<jaka::ViewerSnapshot>(backend->model(), backend->data());
+            if (!viewer.open(viewer_snapshot->model(), viewer_snapshot->data(), "KpiDeployReal MuJoCo C++ Sim"))
+                throw std::runtime_error("failed to open viewer");
+            if (!glfwGetCurrentContext()) throw std::runtime_error("viewer has no current OpenGL context");
+            glfwSwapInterval(args.viewer_vsync ? 1 : 0);
+            std::cout << "[kpi_mujoco_sim] independent viewer fps=" << args.viewer_fps
+                      << " vsync=" << args.viewer_vsync << "; physics runs on control thread" << std::endl;
         }
 #else
         if (args.viewer)
@@ -736,15 +774,25 @@ int main(int argc, char **argv)
                 std::cout << "[kpi_mujoco_sim] ROS joy bootstraps to LOCO first, then uses real ROS joy input" << std::endl;
             }
         }
-        auto wall_start = std::chrono::steady_clock::now();
+        std::ofstream timing_log;
+        if (!args.timing_log_path.empty())
+        {
+            timing_log.open(args.timing_log_path);
+            if (!timing_log) throw std::runtime_error("cannot open control timing log");
+            timing_log.precision(12);
+            timing_log << "tick,wall_elapsed_s,sim_time_s,period_ms,work_before_log_ms,lag_before_log_ms\n";
+        }
+        const auto control_loop = [&]()
+        {
+        const auto wall_start = std::chrono::steady_clock::now();
+        auto previous_start = wall_start;
+        auto last_lag_warning = wall_start;
         while (g_run && RLController::mErrCode == RLController::ERR_NONE)
         {
-#if KPI_MUJOCO_HAS_VIEWER
-            if (args.viewer && !viewer.is_open())
-            {
-                break;
-            }
-#endif
+            const auto tick_start = std::chrono::steady_clock::now();
+            const double interval_ms = control_tick == 0 ? 0.0 :
+                std::chrono::duration<double, std::milli>(tick_start - previous_start).count();
+            previous_start = tick_start;
             if (args.duration > 0.0 && backend->simulation_time() >= args.duration)
             {
                 break;
@@ -830,18 +878,74 @@ int main(int argc, char **argv)
             }
 
 #if KPI_MUJOCO_HAS_VIEWER
-            if (args.viewer)
-            {
-                viewer.render(backend->model(), backend->data());
-            }
+            if (viewer_snapshot) viewer_snapshot->publish(backend->data());
 #endif
 
+            const auto work_end = std::chrono::steady_clock::now();
+            const auto target_wall = wall_start + std::chrono::duration<double>(backend->simulation_time());
+            const double lag_ms = std::max(0.0,
+                std::chrono::duration<double, std::milli>(work_end - target_wall).count());
+            if (timing_log)
+                timing_log << control_tick << ','
+                    << std::chrono::duration<double>(tick_start - wall_start).count() << ','
+                    << backend->simulation_time() << ',' << interval_ms << ','
+                    << std::chrono::duration<double, std::milli>(work_end - tick_start).count() << ','
+                    << lag_ms << '\n';
+            if (args.realtime && lag_ms > 1000.0 * RLController::mTimeStep &&
+                work_end - last_lag_warning > std::chrono::seconds(1))
+            {
+                std::cerr << "[kpi_mujoco_sim] realtime control lag=" << lag_ms
+                          << " ms; reference still advances with wall clock" << std::endl;
+                last_lag_warning = work_end;
+            }
             if (args.realtime)
             {
-                const auto target_wall = wall_start + std::chrono::duration<double>(backend->simulation_time());
                 std::this_thread::sleep_until(std::chrono::time_point_cast<std::chrono::steady_clock::duration>(target_wall));
             }
             control_tick++;
+        }
+        };
+
+#if KPI_MUJOCO_HAS_VIEWER
+        if (args.viewer)
+        {
+            std::atomic<bool> control_done{false};
+            std::exception_ptr control_error;
+            std::thread control([&]()
+            {
+                try { control_loop(); }
+                catch (...) { control_error = std::current_exception(); }
+                control_done.store(true, std::memory_order_release);
+            });
+            try
+            {
+                const auto display_period = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<double>(1.0 / args.viewer_fps));
+                auto next_display = std::chrono::steady_clock::now();
+                while (g_run && !control_done.load(std::memory_order_acquire) && viewer.is_open())
+                {
+                    viewer_snapshot->refresh();
+                    viewer.render(viewer_snapshot->model(), viewer_snapshot->data());
+                    next_display += display_period;
+                    const auto now = std::chrono::steady_clock::now();
+                    if (next_display < now) next_display = now;
+                    std::this_thread::sleep_until(next_display);
+                }
+            }
+            catch (...)
+            {
+                g_run = false;
+                control.join();
+                throw;
+            }
+            g_run = false;
+            control.join();
+            if (control_error) std::rethrow_exception(control_error);
+        }
+        else
+#endif
+        {
+            control_loop();
         }
 
         std::cout << "[kpi_mujoco_sim] stopped t=" << backend->simulation_time()
@@ -859,9 +963,17 @@ int main(int argc, char **argv)
         RLController::mRobot.reset();
         rclcpp::shutdown();
     }
-    catch (const std::exception &ex)
+    catch (...)
     {
-        std::cerr << "[kpi_mujoco_sim] fatal: " << ex.what() << std::endl;
+        try { throw; }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[kpi_mujoco_sim] fatal: " << ex.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "[kpi_mujoco_sim] fatal: unknown control/viewer exception" << std::endl;
+        }
         RLController::mRLThreadRunFlag = false;
         if (RLController::mRobot)
         {

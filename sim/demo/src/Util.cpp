@@ -22,7 +22,7 @@ namespace RLController
 
     void reset_parallel_ankle_observers()
     {
-        // The original ParKine ABI is stateless. Keep this entry point for the
+        // The bounded ParKine ABI is stateless. Keep this entry point for the
         // existing FSM initialization sequence; there is no observer to reset.
     }
 
@@ -30,20 +30,23 @@ namespace RLController
     {
         if (!q || !qd || mNumAction < 18)
             return latch_ankle_fault(context, "invalid feedback dimensions");
+        // Commit neither leg unless both current measurements solve correctly.
+        std::array<double, 4> position{}, velocity{};
         for (int side = 0; side < 2; ++side)
         {
             const int i = side == 0 ? 4 : 16;
             const double sign = side == 0 ? 1.0 : -1.0;
-            double pitch, roll, dpitch, droll, J[2][2];
+            double J[2][2];
             if (AB2PitchRoll(sign*q[i], sign*q[i+1], sign*qd[i], sign*qd[i+1],
-                             &pitch, &roll, &dpitch, &droll, J) < 0)
-            {
-                // Match the original ZMQ deployment: only this ankle's four
-                // observation values become zero on a negative return code.
-                pitch = roll = dpitch = droll = 0.0;
-            }
-            q[i] = pitch; q[i+1] = roll;
-            qd[i] = dpitch; qd[i+1] = droll;
+                             &position[2*side], &position[2*side+1],
+                             &velocity[2*side], &velocity[2*side+1], J) < 0)
+                return latch_ankle_fault(context, side == 0 ? "left forward solve failed" : "right forward solve failed");
+        }
+        for (int side = 0; side < 2; ++side)
+        {
+            const int i = side == 0 ? 4 : 16;
+            q[i] = position[2*side]; q[i+1] = position[2*side+1];
+            qd[i] = velocity[2*side]; qd[i+1] = velocity[2*side+1];
         }
         return true;
     }

@@ -79,6 +79,7 @@ set(KPI_DEMO_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/StatePublisher.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/GlobalVars.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ParKine.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ParallelAnkleSolver.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/CheckedMujocoPhysics.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/Util.cpp"
 )
@@ -127,8 +128,8 @@ target_link_libraries(KpiMujocoSimDemo
 )
 
 # The packaged SDK calls these public C symbols through its PLT. Export the
-# restored original implementations so SDK PD and policy feedback use the
-# same original ankle equations and solver behavior.
+# bounded forward implementation so SDK PD and policy feedback use the same
+# validated assembly root; the inverse ABI remains unchanged.
 if(UNIX AND NOT APPLE)
   target_link_options(KpiMujocoSimDemo PRIVATE
     "-Wl,--export-dynamic-symbol=AB2PitchRoll"
@@ -157,13 +158,22 @@ install(TARGETS KpiMujocoSimDemo
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(ViewerSnapshotTest tests/test_viewer_snapshot.cpp)
+  target_include_directories(ViewerSnapshotTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${_sdk_mujoco_include}")
+  target_link_libraries(ViewerSnapshotTest Threads::Threads "${_sdk_mujoco_lib}")
+  set_target_properties(ViewerSnapshotTest PROPERTIES BUILD_RPATH
+    "${KPI_MUJOCO_SIM_SDK_ROOT}/third_party/mujoco/lib")
+  add_test(NAME viewer_snapshot COMMAND ViewerSnapshotTest
+    "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_contact.xml")
+
   add_executable(ParallelAnkleSolverTest tests/test_parallel_ankle_solver.cpp
-    src/ParKine.cpp)
+    src/ParKine.cpp src/ParallelAnkleSolver.cpp)
   target_include_directories(ParallelAnkleSolverTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  add_test(NAME legacy_parallel_ankle_solver COMMAND ParallelAnkleSolverTest)
+  add_test(NAME bounded_parallel_ankle_solver COMMAND ParallelAnkleSolverTest)
 
   add_executable(CheckedMujocoPhysicsTest tests/test_checked_mujoco_physics.cpp
-    src/CheckedMujocoPhysics.cpp src/ParKine.cpp)
+    src/CheckedMujocoPhysics.cpp src/ParKine.cpp src/ParallelAnkleSolver.cpp)
   ament_target_dependencies(CheckedMujocoPhysicsTest rclcpp sensor_msgs trajectory_msgs)
   target_include_directories(CheckedMujocoPhysicsTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${_sdk_include}" "${_sdk_kpi_include}" "${_sdk_mujoco_include}")
@@ -175,7 +185,7 @@ if(BUILD_TESTING)
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_sym.xml")
 
   add_executable(AnkleFaultHandlingTest tests/test_ankle_fault_handling.cpp
-    src/Util.cpp src/ParKine.cpp)
+    src/Util.cpp src/ParKine.cpp src/ParallelAnkleSolver.cpp)
   ament_target_dependencies(AnkleFaultHandlingTest rclcpp sensor_msgs trajectory_msgs)
   target_include_directories(AnkleFaultHandlingTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${_sdk_include}" "${_sdk_kpi_include}" "${_sdk_mujoco_include}" "${_demo_onnx_include}")

@@ -32,13 +32,13 @@ void check_shutdown(MujocoRobotBackend &b) {
     legged_waist_controller::RobotIntf::JointStatus status{};
     require(b.get_joint_status("left_ankle_pitch_joint",status)>=0&&!status.is_enable,"fault retained drive enable");
 }
-void sdk_uses_original_abi(const char *xml,int side) {
+void sdk_uses_bounded_abi(const char *xml,int side) {
     auto c=configuration(xml);MujocoRobotBackend b(c);enable(b);
     // Isolate one PD evaluation: no contact/equality impulses or gravity are
     // needed to prove which kinematics the precompiled SDK actually calls.
     b.model()->opt.disableflags|=mjDSBL_CONSTRAINT|mjDSBL_GRAVITY;
     std::fill_n(b.data()->qvel,b.model()->nv,0.);
-    constexpr double a=-.7943700221369686,beta=1.6945090391329518;
+    constexpr double a=-1.6221196396336162,beta=1.0576655247598854;
     double pitch,roll,dpitch,droll,J[2][2];
     require(AB2PitchRoll(a,beta,0.,0.,&pitch,&roll,&dpitch,&droll,J)>=0,"legacy ABI fixture failed");
     const char *first=side==0?"Left_drive1_joint":"Right_drive1_joint";
@@ -57,7 +57,7 @@ void sdk_uses_original_abi(const char *xml,int side) {
         const int id=mj_name2id(b.model(),mjOBJ_ACTUATOR,motors[i]);require(id>=0,"drive actuator missing");
         if(std::abs(b.data()->ctrl[id]-wanted[i])>1.e-10) {
             std::cerr<<motors[i]<<" ctrl="<<b.data()->ctrl[id]<<" expected="<<wanted[i]<<'\n';
-            throw std::runtime_error("SDK PD did not use original ABI root/Jacobian (ELF preemption/sign regression)");
+            throw std::runtime_error("SDK PD did not use bounded ABI root/Jacobian (ELF preemption/sign regression)");
         }
     }
     require(guard.successful_steps()==1,"healthy substep count");guard.shutdown();check_shutdown(b);
@@ -75,7 +75,7 @@ void nonfinite_input_stops_sdk(const char *xml,int which) {
     require(!guard.error().empty(),"fault diagnostic missing");check_shutdown(b);
     require(!guard.step()&&b.simulation_time()==time,"fault was not latched");
 }
-void finite_state_has_no_new_assembly_gate(const char *xml) {
+void finite_invalid_assembly_stops_sdk(const char *xml) {
     auto config=configuration(xml);
     std::fill(config.kp.begin(),config.kp.end(),0.);
     std::fill(config.kp_pitch_roll.begin(),config.kp_pitch_roll.end(),0.);
@@ -86,15 +86,15 @@ void finite_state_has_no_new_assembly_gate(const char *xml) {
     mj_forward(b.model(),b.data());
     jaka::CheckedMujocoPhysics guard(b);
     const double time=b.simulation_time();
-    require(guard.step(),"finite legacy AB state was blocked by an assembly preflight");
-    require(guard.successful_steps()==1&&b.simulation_time()>time,"finite SDK step did not advance");
+    require(!guard.step(),"invalid finite assembly entered SDK PD");
+    require(guard.successful_steps()==0&&b.simulation_time()==time,"invalid finite assembly advanced physics");
     guard.shutdown();check_shutdown(b);
 }
 }
 int main(int argc,char **argv) {
-    try {require(argc==2,"expected XML path");sdk_uses_original_abi(argv[1],0);sdk_uses_original_abi(argv[1],1);
+    try {require(argc==2,"expected XML path");sdk_uses_bounded_abi(argv[1],0);sdk_uses_bounded_abi(argv[1],1);
         for(int which=0;which<3;++which)nonfinite_input_stops_sdk(argv[1],which);
-        finite_state_has_no_new_assembly_gate(argv[1]);
-        std::cout<<"original SDK PD ABI/Jacobian parity, finite legacy state and generic nonfinite isolation passed\n";return 0;
+        finite_invalid_assembly_stops_sdk(argv[1]);
+        std::cout<<"bounded SDK PD ABI/Jacobian parity, invalid assembly and nonfinite isolation passed\n";return 0;
     } catch(const std::exception &e) {std::cerr<<e.what()<<'\n';return 1;}
 }

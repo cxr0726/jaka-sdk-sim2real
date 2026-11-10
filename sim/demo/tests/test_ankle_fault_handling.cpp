@@ -72,15 +72,16 @@ int main()
                 q[16]==rp&&q[17]==rr&&qd[16]==rdp&&qd[17]==rdr,"original ABI/sign/velocity parity");
         require(q[8]==.123&&backend->enabled&&backend->pd&&mErrCode==ERR_NONE,"healthy side effects");
 
-        // A negative result has the original per-leg zero fallback. It must
-        // neither latch the removed assembly fault nor discard the good leg.
+        // A failed right leg must not commit even the healthy left conversion.
         PitchRoll2AB(.1,-.05,&q[4],&q[5]);
         q[16]=std::numeric_limits<double>::quiet_NaN();q[17]=0.;
-        require(decode_parallel_ankles(q.data(),qd.data(),"legacy bad right"),"legacy failure was escalated");
-        require(std::abs(q[4]-.1)<2.e-5&&std::abs(q[5]+.05)<2.e-5,"good leg lost on right failure");
-        require(q[16]==0.&&q[17]==0.&&qd[16]==0.&&qd[17]==0.,"negative return did not zero only failed leg");
-        require(mErrCode==ERR_NONE&&backend->pd&&backend->enabled,"negative ABI return disabled controller");
+        const auto oldq=q,oldqd=qd;
+        require(!decode_parallel_ankles(q.data(),qd.data(),"bad right ankle"),"failure was not rejected");
+        require(q[4]==oldq[4]&&q[5]==oldq[5]&&qd[4]==oldqd[4]&&qd[5]==oldqd[5],"partial left leg commit");
+        require(!std::isfinite(q[16]),"failed leg replaced with zero");
+        require(mErrCode==ERR_JOINT&&!backend->pd&&!backend->enabled,"failed solve did not disable/latch");
         require(backend->commands==0,"decoder emitted a trajectory");
+        mErrCode=ERR_NONE;backend->enabled=backend->pd=true;
 
         std::vector<double> targets(27,0.);targets[4]=.1;targets[5]=-.05;
         targets[16]=-.2;targets[17]=.1;targets[8]=.123;
@@ -99,7 +100,7 @@ int main()
         for (int i=0;i<27;++i)
             require(mNlf2[i].x0==42.+i && mNlf2[i].v0==-42.-i, "partially bound invalid planner state");
         mRobot.reset();
-        std::cout << "legacy ankle feedback/target parity, zero fallback and generic I/O faults passed\n";
+        std::cout << "bounded ankle feedback/legacy inverse parity, transactional fault stop and I/O faults passed\n";
         return 0;
     }
     catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }

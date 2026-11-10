@@ -1,5 +1,11 @@
 # KPI MuJoCo Sim SDK Demo
 
+2026-11-10：修复旧并联正解的周期/装配分支错误；forward 使用有界求解，
+SDK 每物理子步前预检，反馈失败停控，不再填零继续。原 inverse、motion buffer、
+PD、目标限幅和接触 XML 保留。viewer 改为主线程独立快照渲染，控制/物理在工作线程，
+默认关闭 VSync。参数、验证和播放命令见
+[实时渲染与踝正解修复](docs/realtime_viewer_and_ankle_fix.md)。下文回退说明为历史记录。
+
 这个 demo 用于验证客户 SDK 包可以接入真机部署控制器的 LOCO 策略逻辑，并通过 MuJoCo SDK 后端提供仿真反馈。
 
 2026-11-04：SuperMimic 已恢复旧墙钟 motion buffer，SDK/策略共享的脚踝解算恢复原版。

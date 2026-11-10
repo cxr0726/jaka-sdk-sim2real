@@ -1,4 +1,6 @@
 #include "ParKine.hpp"
+#include "ParallelAnkleSolver.hpp"
+#include <limits>
 #include <math.h>
 
 //parallel kinematic parameters for jaka pi
@@ -15,183 +17,27 @@
 #define MAX_ITER  10
 #define PI 3.14159265358979323846
 
-static void R(double pitch, double roll, double Rot[3][3], double Rpitch[3][3], double Rroll[3][3])
+// Stateless bounded assembly solve shared by policy feedback and the sim SDK.
+// Keep the public C ABI: the packaged simulation SDK calls this through its PLT.
+// Failure outputs are deliberately invalid; callers must stop instead of using
+// fabricated zero angles or a stale estimate.
+int AB2PitchRoll(double a, double b, double da, double db,
+                 double *pitch, double *roll, double *dpitch, double *droll,
+                 double J[2][2])
 {
-	const double sp = sin(pitch);
-	const double cp = cos(pitch);
-	const double sr = sin(roll);
-	const double cr = cos(roll);
-
-	Rot[0][0] = cp * cr;
-	Rot[0][1] = -cp * sr;
-	Rot[0][2] = -sp;
-	Rot[1][0] = cr * sp;
-	Rot[1][1] = -sp * sr;
-	Rot[1][2] = cp;
-	Rot[2][0] = -sr;
-	Rot[2][1] = -cr;
-	Rot[2][2] = 0.0;
-
-	Rpitch[0][0] = -Rot[1][0];
-	Rpitch[0][1] = -Rot[1][1];
-	Rpitch[0][2] = -cp;
-	Rpitch[1][0] = Rot[0][0];
-	Rpitch[1][1] = Rot[0][1];
-	Rpitch[1][2] = -sp;
-	Rpitch[2][0] = 0.0;
-	Rpitch[2][1] = 0.0;
-	Rpitch[2][2] = 0.0;
-
-	Rroll[0][0] = Rot[0][1];
-	Rroll[0][1] = -Rot[0][0];
-	Rroll[0][2] = 0.0;
-	Rroll[1][0] = Rot[1][1];
-	Rroll[1][1] = -Rot[1][0];
-	Rroll[1][2] = 0.0;
-	Rroll[2][0] = -cr;
-	Rroll[2][1] = sr;
-	Rroll[2][2] = 0.0;
-
-}
-
-static inline double pTRp(const double p1[3], double R[3][3], const double p2[3])
-{
-	double tmp[3];
-	tmp[0] = p1[0] * R[0][0] + p1[1] * R[1][0] + p1[2] * R[2][0];
-	tmp[1] = p1[0] * R[0][1] + p1[1] * R[1][1] + p1[2] * R[2][1];
-	tmp[2] = p1[0] * R[0][2] + p1[1] * R[1][2] + p1[2] * R[2][2];
-
-	double ret = tmp[0] * p2[0] + tmp[1] * p2[1] + tmp[2] * p2[2];
-	return ret;
-}
-
-static inline double dot3(const double p1[3], const double p2[3])
-{
-	double ret = p1[0] * p2[0] + p1[1] * p2[1] + p1[2] * p2[2];
-	return ret;
-}
-
-static inline int inv2(double J[2][2])
-{
-	double det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
-	if (fabs(det) > 1e-5)
-	{
-		double tmp = J[0][0];
-		J[0][0] = J[1][1] / det;
-		J[1][1] = tmp / det;
-		J[0][1] = -J[0][1] / det;
-		J[1][0] = -J[1][0] / det;
-		return 0;
-	}
-	else
-	{
-		return -1;
-	}
-}
-
-int  AB2PitchRoll(double a, double b, double da, double db, double* pitch, double* roll, double* dpitch, double* droll, double J[2][2])
-{
-	double sum = a + b;
-	if (fabs(sum) > 1.0) // range check
-	{
-		sum = sum > 0.0 ? 1.0 : -1.0;
-		b = sum - a;
-	}
-
-	const double sa = sin(a);
-	const double ca = cos(a);
-	const double sb = sin(b);
-	const double cb = cos(b);
-
-	const double p1[3] = { x1, y1, z1 };
-	const double p2[3] = { x1, -y1, z1 };
-	const double p3[3] = {x3 + L * sa, z2, -L * ca};
-	const double p4[3] = {x4 - L * sb, z2, L * cb};
-
-	const double p1_dot_p3 = (dot3(p1,p1) + dot3(p3,p3) - L1 * L1) / 2.0;
-	const double p2_dot_p4 = (dot3(p2,p2) + dot3(p4,p4) - L2 * L2) / 2.0;
-
-	*pitch = (a - b) / 2.0;
-	*roll = -(a + b) / 2.0;
-	double Rot[3][3], Rpitch[3][3], Rroll[3][3];
-	R(*pitch, *roll, Rot, Rpitch, Rroll);
-
-	double Jac[2][2],y[2], delta[2];
-	y[0] = p1_dot_p3 - pTRp(p3, Rot, p1);
-	y[1] = p2_dot_p4 - pTRp(p4, Rot, p2);
-
-	Jac[0][0] = pTRp(p3, Rpitch, p1);
-	Jac[0][1] = pTRp(p3, Rroll, p1);
-	Jac[1][0] = pTRp(p4, Rpitch, p2);
-	Jac[1][1] = pTRp(p4, Rroll, p2);
-	if (!inv2(Jac))
-	{
-		delta[0] = Jac[0][0] * y[0] + Jac[0][1] * y[1];
-		delta[1] = Jac[1][0] * y[0] + Jac[1][1] * y[1];
-	}
-	else
-	{
-		//singular
-		*dpitch = 0.0;
-		*droll = 0.0;
-		J[0][0] = 1.0;
-		J[0][1] = 0.0;
-		J[1][0] = 0.0;
-		J[1][1] = 1.0;
-		return -1;
-	}
-	int count = 0;
-
-	while ((delta[0]*delta[0]+delta[1]*delta[1]) > ITER_THRESHOLD && count < MAX_ITER)
-	{
-		*pitch += delta[0];
-		*roll += delta[1];
-
-		R(*pitch, *roll, Rot, Rpitch, Rroll);
-
-		y[0] = p1_dot_p3 - pTRp(p3, Rot, p1);
-		y[1] = p2_dot_p4 - pTRp(p4, Rot, p2);
-
-		Jac[0][0] = pTRp(p3, Rpitch, p1);
-		Jac[0][1] = pTRp(p3, Rroll, p1);
-		Jac[1][0] = pTRp(p4, Rpitch, p2);
-		Jac[1][1] = pTRp(p4, Rroll, p2);
-
-		if (!inv2(Jac))
-		{
-			delta[0] = Jac[0][0] * y[0] + Jac[0][1] * y[1];
-			delta[1] = Jac[1][0] * y[0] + Jac[1][1] * y[1];
-		}
-		else
-		{
-			//singular
-			*dpitch = 0.0;
-			*droll = 0.0;
-			J[0][0] = 1.0;
-			J[0][1] = 0.0;
-			J[1][0] = 0.0;
-			J[1][1] = 1.0;
-			return -1;
-		}
-		count++;
-	}
-
-	const double p3_dot[3] = {L * ca, 0.0, L * sa};
-	const double p4_dot[3] = {-L * cb, 0.0, -L * sb};
-
-	double M[2][2];
-	M[0][0] = pTRp(p3_dot, Rot, p1) - dot3(p3, p3_dot);
-	M[1][1] = pTRp(p4_dot, Rot, p2) - dot3(p4, p4_dot);
-	M[0][1] = M[1][0] = 0.0;
-	J[0][0] = -(Jac[0][0] * M[0][0] + Jac[0][1] * M[1][0]);
-	J[0][1] = -(Jac[0][0] * M[0][1] + Jac[0][1] * M[1][1]);
-	J[1][0] = -(Jac[1][0] * M[0][0] + Jac[1][1] * M[1][0]);
-	J[1][1] = -(Jac[1][0] * M[0][1] + Jac[1][1] * M[1][1]);
-
-	*dpitch = J[0][0] * da + J[0][1] * db;
-	*droll = J[1][0] * da + J[1][1] * db;
-
-	return count;
+    if (!pitch || !roll || !dpitch || !droll || !J)
+        return static_cast<int>(jaka::AnkleSolveStatus::InvalidInput);
+    const double invalid = std::numeric_limits<double>::quiet_NaN();
+    *pitch = *roll = *dpitch = *droll = invalid;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j) J[i][j] = invalid;
+    const auto result = jaka::solve_parallel_ankle(a, b, da, db);
+    if (!result.ok()) return static_cast<int>(result.status);
+    *pitch = result.pitch; *roll = result.roll;
+    *dpitch = result.dpitch; *droll = result.droll;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j) J[i][j] = result.J[i][j];
+    return result.iterations;
 }
 
 void PitchRoll2AB(double pitch,double roll, double* a,double* b)
