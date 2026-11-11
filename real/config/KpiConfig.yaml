@@ -139,7 +139,9 @@ jakaminimimic_zmq_fixwrist:
 # Global defaults and gains stay in SDK deployment order. The 27-axis kp/kd
 # remain converted hardware MIT gains; dedicated PR gains are configured above.
 jakaminimimic_superzmq:
-  policy_path: "policy_mimic/ckpt_0100000_bones.onnx"
+  # Residual reference skip is embedded in this ONNX. Keep q0 + scale * output
+  # in C++; do not add q_ref again. History stores the full ONNX output.
+  policy_path: "policy_mimic/ckpt_0160000_bones_residual.onnx"
   observation_layout: isaac_khan
   # Actor input/output order (JAKA), distinct from the global SDK joint_names.
   joint_names: [

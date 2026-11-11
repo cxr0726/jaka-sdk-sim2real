@@ -2,6 +2,11 @@
 
 [English](README.md)
 
+2026-11-11：SuperMimic默认模型为 `ckpt_0160000_bones_residual.onnx`。
+该发布版本保留旧脚踝正解、原错误处理和旧motion buffer，不包含11月10日的脚踝优化。
+参考skip已嵌入ONNX，部署端不再加参考角；机器人参数继续由YAML提供。
+协议、参数、验证和构建说明见[Residual160k部署](docs/residual_160k_deployment.zh-CN.md)。
+
 `kpi_deploy_real` 用于在腿腰式机器人上运行运动策略和有限状态机（FSM）。
 硬件通信由随附的 `legged_waist_robot_intf` 库所提供的
 `legged_waist_controller::RobotIntf` 负责。

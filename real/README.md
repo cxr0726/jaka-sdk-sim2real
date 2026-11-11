@@ -2,9 +2,14 @@
 
 [简体中文](README.zh-CN.md)
 
+2026-11-11: SuperMimic now selects `ckpt_0160000_bones_residual.onnx`.
+This real release retains the legacy ankle solver, error handling and motion
+buffer. Reference skip is embedded in ONNX; control parameters remain YAML-owned.
+See the [residual160k deployment notes](docs/residual_160k_deployment.zh-CN.md).
+
 Khan SuperMimic real deployment uses YAML-owned joint parameters and hardware
 gains. See the [migration and validation notes](docs/supermimic_deployment.zh-CN.md)
-for the LB+B entry/exit gesture, source-clock buffer and offline checks.
+for the LB+B entry/exit gesture, legacy receiver-arrival buffer and offline checks.
 
 `kpi_deploy_real` runs the locomotion policy and finite-state machine (FSM) for
 the legged-waist robot. Hardware communication is delegated to

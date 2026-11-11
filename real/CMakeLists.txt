@@ -103,6 +103,10 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/ckpt_0100000_new_supermimic.onnx"
     "${CMAKE_CURRENT_SOURCE_DIR}/config/KpiConfig.yaml")
   set_tests_properties(real_supermimic_yaml_contract PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME real_supermimic_residual_yaml_contract COMMAND RealSuperMimicDeploymentTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/ckpt_0160000_bones_residual.onnx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/KpiConfig.yaml")
+  set_tests_properties(real_supermimic_residual_yaml_contract PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
   add_executable(RealSuperMimicSafetyTest tests/test_supermimic_safety.cpp
     src/SuperMimicSafety.cpp)
@@ -133,6 +137,10 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/config/KpiConfig.yaml"
     "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/ckpt_0100000_new_supermimic.onnx")
   set_tests_properties(real_supermimic_policy_math PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME real_supermimic_residual_policy_math COMMAND RealSuperMimicPolicyTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/KpiConfig.yaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/ckpt_0160000_bones_residual.onnx")
+  set_tests_properties(real_supermimic_residual_policy_math PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
   add_executable(RealSuperMimicConfigTest tests/test_supermimic_config.cpp
     src/GlobalVars.cpp src/ParKine.cpp src/SuperMimicDeployment.cpp)

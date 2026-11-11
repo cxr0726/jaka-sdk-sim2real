@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--model',type=Path,required=True)
     parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--baseline-ref',help='Optional Git revision to prove all hardware gains/defaults are unchanged')
+    parser.add_argument('--require-reference-residual',action='store_true',
+                        help='Also verify the embedded reference skip computation and dedicated PR gains')
     parser.add_argument('--output',type=Path)
     args=parser.parse_args()
     config_path=args.config.resolve()
@@ -88,11 +90,52 @@ def main():
         for key in ['kp','kd','kp_pitch_roll','kd_pitch_roll','default_angles','init_target','angle_map']:
             require(cfg[key]==baseline[key],f'hardware YAML {key} changed from authorized baseline {args.baseline_ref}')
         baseline_checked=True
+    residual_check=None
+    if args.require_reference_residual:
+        # Metadata is an offline assertion only; runtime values stay YAML-owned.
+        import copy
+        import onnx
+        action=schema['action']
+        require(action.get('parameterization')=='reference_residual' and
+                action.get('reference_skip_embedded') is True and
+                action.get('reference_frame_offset')==1 and
+                action.get('reference_residual_beta')==1.0,'unsupported residual export')
+        require(action['pd_target']=='default_joint_pos + action_scale * actions',
+                'use the full ONNX action without a second reference add')
+        require(cfg['angle_map']==0,'residual real deployment requires PR PD')
+        require(float(scfg.get('reference_height_offset',0))==0,'reference height must remain unshifted')
+        ankle_names=['left_ankle_pitch_joint','left_ankle_roll_joint',
+                     'right_ankle_pitch_joint','right_ankle_roll_joint']
+        ankle_indices=[policy_names.index(n) for n in ankle_names]
+        np.testing.assert_allclose(cfg['kp_pitch_roll'],numeric_csv(metadata,'joint_stiffness')[ankle_indices],atol=1e-6,rtol=0)
+        np.testing.assert_allclose(cfg['kd_pitch_roll'],numeric_csv(metadata,'joint_damping')[ankle_indices],atol=1e-6,rtol=0)
+        model=onnx.load(str(args.model))
+        producers={name:node for node in model.graph.node for name in node.output}
+        final=producers['actions']
+        require(final.op_type=='Add','expected exported decoder + reference skip')
+        decoder=[name for name in final.input if producers.get(name) is not None and producers[name].op_type=='Gemm']
+        require(len(decoder)==1,'cannot identify the exported decoder residual')
+        probe=copy.deepcopy(model)
+        probe.graph.output.append(onnx.helper.make_tensor_value_info(decoder[0],onnx.TensorProto.FLOAT,['batch',27]))
+        onnx.checker.check_model(probe)
+        probe_session=ort.InferenceSession(probe.SerializeToString(),sess_options=options,providers=['CPUExecutionProvider'])
+        rng=np.random.default_rng(20261111)
+        obs=rng.normal(0,.2,(128,620)).astype(np.float32)
+        q0=model_defaults.astype(np.float32);alpha=scale.astype(np.float32)
+        obs[:,47:74]=q0+rng.normal(0,.35,(128,27)).astype(np.float32)
+        total,delta=probe_session.run(['actions',decoder[0]],{'obs':obs})
+        raw_error=float(np.max(abs(total-(delta+(obs[:,47:74]-q0)/alpha))))
+        target_error=float(np.max(abs((q0+alpha*total)-(obs[:,47:74]+alpha*delta))))
+        require(raw_error<2e-6 and target_error<2e-6,'embedded residual computation differs from deployment')
+        residual_check={'samples':128,'reference_frame':1,'obs_reference_slice':[47,74],
+                        'raw_action_error':raw_error,'target_equivalence_error_rad':target_error,
+                        'dedicated_PR_gains_match':True,'last_action':'full raw ONNX output'}
     result={'passed':True,'model':str(args.model.resolve()),'model_sha256':hashlib.sha256(args.model.read_bytes()).hexdigest(),
             'config':str(config_path),'policy_to_deploy':permutation,'default_joint_pos_max_error':float(np.max(abs(defaults[permutation]-model_defaults))),
             'hardware_pd_source':'YAML, intentionally not required to numerically equal training PD metadata',
             'hardware_gains':gains,'baseline_ref':args.baseline_ref,'baseline_preserved':baseline_checked,
-            'runtime_metadata_parameter_reads':False,'note':'Metadata is inspected by this offline audit only; no hardware code is executed.'}
+            'runtime_metadata_parameter_reads':False,'reference_residual_check':residual_check,
+            'note':'Metadata is inspected by this offline audit only; no hardware code is executed.'}
     if args.output:
         args.output.parent.mkdir(parents=True,exist_ok=True)
         args.output.write_text(json.dumps(result,indent=2)+'\n')
