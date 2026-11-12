@@ -59,6 +59,43 @@ obs scales 和新模型相符；硬件转换后的 PD 继续从 YAML 读取。
 - real adapter 独立加载/映射测试通过；未构造硬件接口。
 - 本机 ORT CPU 单线程同1000条obs：新模型median约.39–.40ms，旧EMA180约.38–.39ms。
 
+## Real完整策略数学与踝反馈数值检查
+
+进一步分别快照了已提交的旧求解器版real，以及当前含未提交脚踝修复的工作区real，
+独立编译真实`FSMMimicJakaMiniSuperZmq.cpp`、YAML adapter和配置初始化代码。
+测试禁止构造RobotIntf，I/O调用会抛异常，不连接实机。
+
+五动作每版本28,876个policy tick，输入为同一份已解码PR反馈、IMU和五帧reference。
+两版本与同输入sim均得到：
+
+| 检查项 | 最大绝对误差 |
+|---|---:|
+| 完整620维观测，含history/yaw alignment | 0 |
+| 完整27维raw ONNX action | 0 |
+| 独立按YAML计算的raw target/关节散射 | 0 |
+| 全27轴real目标限幅后的target | 0 |
+
+真实`KpiConfigInit`也分别验证了相对及绝对模型路径、YAML增益/default/limits读回；
+重复`config/`前缀会失败。这证明200k策略计算可沿用当前real部署，
+不代表已经验证原始编码器、网络调度和硬件闭环。
+
+另外独立编译旧/新real踝函数，用实际SDK AB反馈及理想PR→IK→FK往返检查解码。
+在模型标称pitch[-.5236,.6108]、roll±.349域内，网格与随机细扫共464,578个IK可达姿态，
+旧版没有出现失败或大错分支，最大角往返误差约9.99e-6rad；有界版约4.31e-10rad。
+这不是对实机机械行程或全部标定误差的认证。
+
+SDK软限位穿透产生的**标称域外**样本可复现旧求解器的周期/装配分支错误，
+旧函数还会返回非负值，现有`rc<0`检查无法识别；不能直接将这些样本当作实机正常域反例。
+例如Dance仿真66.46秒，同一右踝AB反馈，旧版输出PR约[-6.510,-28.107]，
+当前有界版约[-.565,-.322]。仅把这一个坏反馈注入实际200k actor、保留先前history及其余输入，
+raw target最大改变1.94rad，限幅后右roll由−.157变成+.7rad。
+因此actor计算一致并不能保护错误反馈，target限幅也不能修复观测中的错分支。
+
+当前工作区已包含的real脚踝修复没有在本次提交；远端模型发布仍保留旧求解器。
+本轮没有修改real源码来改变这个选择。下层RobotIntf为ROS/RPC客户端，
+可见代码能核对target、参数和调用方式，但控制器内部实际PR PD→AB力矩实现不可见，
+本次不能声称已数值验证硬件内部扭矩或证明实机效果。
+
 ## C++完整动作结果
 
 使用当前SDK闭链和默认 `Khan_mini_contact.xml`、参考高度0、target limits none。
@@ -142,7 +179,8 @@ cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
 `--policy`只覆盖本次生成的回放配置，mode仍为`jakaminimimic_superzmq`。
 
 若在real侧选用，手动将`real/config/KpiConfig.yaml`中
-`jakaminimimic_superzmq.policy_path`指向`config/policy_mimic/ckpt_0200000_bones_official_ema.onnx`；
+`jakaminimimic_superzmq.policy_path`设为`policy_mimic/ckpt_0200000_bones_official_ema.onnx`；
+real加载器会为这个相对路径补上`./config/`，不要重复添加`config/`前缀。
 保持YAML-owned关节顺序、q0、scale、转换PD和PR增益。这次没有替你修改默认路径。
 
 ## 本机复核资料
@@ -155,5 +193,7 @@ cd /home/cxr0726/workspace/JAKA_comparison/sim/demo
 - `limits/raw_targets_vs_native_PR.png`：虚拟target和原生物理PR角的区别。
 - `mjlab/pico3_comparison.json`：同名输入的训练侧新旧对照。
 - `build/production_build.log`、`build/production_ctest.log`：正式demo与协议CTest。
+- `real_runtime/`：双版本真实real策略数学、实际配置初始化和单步坏反馈注入。
+- `real_commands/`：原生AB反馈、标称域细扫、旧/新正解及可见控制接口审计。
 
 诊断数据、临时碰撞模型和视频不写入git；ONNX副本、最小加载器兼容代码、回归测试与本文纳入提交。
