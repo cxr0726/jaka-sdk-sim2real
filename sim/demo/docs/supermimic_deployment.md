@@ -115,7 +115,13 @@ validation.
 History is oldest to newest within each term. Reset repeats the first sensor
 sample five times with previous action zero. The future orientation window is
 recomputed on every tick and is not itself stacked into history. Rot6d is
-`R00,R01,R10,R11,R20,R21`. No running mean/variance normalization is added.
+`R00,R01,R10,R11,R20,R21`. The C++ caller adds no running mean/variance
+normalization. An actor may embed frozen running normalization in its ONNX;
+the loader accepts it only when the schema declares the supported embedded,
+inference-frozen and sensor-scale contract. The caller still supplies angular
+velocity times 0.5 and joint velocity times 0.2. The official actor reverses
+these caller scales inside its graph before normalizing raw sensor features.
+See [Official 200k EMA deployment](official200_ema_deployment.md).
 
 Both the reference and measured IMU anchor are `base_link`. The input wire's
 base is body index 0. The policy does not use the waist quaternion or add the

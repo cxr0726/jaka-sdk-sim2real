@@ -245,7 +245,8 @@ if(BUILD_TESTING)
   set_target_properties(SuperMimicDeploymentTest PROPERTIES BUILD_RPATH "${_demo_onnx_libdir}")
   add_test(NAME supermimic_deployment COMMAND SuperMimicDeploymentTest
     "${CMAKE_CURRENT_SOURCE_DIR}/export/khan_mini/ckpt_0100000_new.onnx"
-    "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/latest_m62k_pico_base.onnx")
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/latest_m62k_pico_base.onnx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/policy_mimic/ckpt_0200000_bones_official_ema.onnx")
 endif()
 
 ament_package()

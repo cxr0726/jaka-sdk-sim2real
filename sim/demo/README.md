@@ -116,6 +116,19 @@ SuperMimic 本机 NPZ 回放（先启动控制器，再发布动作）：
 即可播放其他动作。`--policy` 仅覆盖本次生成的回放配置，不修改源 YAML；
 也可用 `KPI_SUPER_NPZ_POLICY` 指定。未指定时仍使用 YAML 中的策略。
 
+Official 200k EMA（无参考残差动作）使用同一个 SuperMimic 模式：
+
+```bash
+./scripts/run_super_npz_demo.sh scripts/motion_pico3.npz \
+  --policy config/policy_mimic/ckpt_0200000_bones_official_ema.onnx \
+  --viewer --duration 0 --target-limits none --height-offset 0
+```
+
+该模型的冻结运行归一化已嵌入 ONNX；部署端保持原有观测缩放，
+不额外归一化、不叠加参考关节角或动作 EMA。加载器会核验图内归一化的协议声明。
+兼容性、对照测试和踝目标限幅说明见
+[Official 200k EMA 部署核对](docs/official200_ema_deployment.md)。
+
 sim 的 SuperMimic 从 ONNX metadata 读取默认关节角、action scale、关节顺序及
 Kp/Kd，并覆盖 YAML 仿真增益；PR 踝增益也随模型更新。
 BONES 100k 为 pitch `Kp=80,Kd=2`、roll `Kp=20,Kd=1`。

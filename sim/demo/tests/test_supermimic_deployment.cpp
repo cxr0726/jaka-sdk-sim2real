@@ -41,7 +41,8 @@ int main(int argc, char **argv)
 {
     try
     {
-        check(argc == 3, "usage: SuperMimicDeploymentTest <super.onnx> <legacy.onnx>");
+        check(argc == 3 || argc == 4,
+              "usage: SuperMimicDeploymentTest <super.onnx> <legacy.onnx> [official.onnx]");
         Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "supermimic-contract-test");
         Ort::SessionOptions options;
         options.SetIntraOpNumThreads(1);
@@ -106,7 +107,7 @@ int main(int argc, char **argv)
         const std::vector<char> bytes((std::istreambuf_iterator<char>(stream)), {});
         const auto normalized = replace_once(bytes, "\"running_normalization\": false", "\"running_normalization\": true ");
         Ort::Session invalid_schema(env, normalized.data(), normalized.size(), options);
-        rejects([&] { RLController::SuperMimicDeployment bad(invalid_schema, names); }, "schema.running_normalization");
+        rejects([&] { RLController::SuperMimicDeployment bad(invalid_schema, names); }, "schema.normalization");
         const auto clipped = replace_once(bytes, "\"clip\": null", "\"clip\": 5.0 ");
         Ort::Session invalid_clip(env, clipped.data(), clipped.size(), options);
         rejects([&] { RLController::SuperMimicDeployment bad(invalid_clip, names); }, "schema.action.clip");
@@ -116,6 +117,51 @@ int main(int argc, char **argv)
         const auto nonfinite = replace_once(bytes, "187,187,187,187,100,50", "nan,187,187,187,100,50");
         Ort::Session invalid_gain(env, nonfinite.data(), nonfinite.size(), options);
         rejects([&] { RLController::SuperMimicDeployment bad(invalid_gain, names); }, "joint_stiffness contains a nonfinite");
+
+        if (argc == 4)
+        {
+            // Official EMA has frozen running normalization inside the graph,
+            // while preserving the same raw, caller-scaled input contract.
+            Ort::Session official(env, argv[3], options);
+            const RLController::SuperMimicDeployment official_contract(official, names);
+            check(official_contract.policy_to_deploy == expected_deploy &&
+                  official_contract.policy_from_buffer == expected_buffer,
+                  "official actor preserves all joint mappings");
+            check(official_contract.default_joint_pos == contract.default_joint_pos &&
+                  official_contract.action_scale == contract.action_scale,
+                  "official actor preserves defaults and action scales");
+            check(official_contract.joint_stiffness[4] == 80.f &&
+                  official_contract.joint_stiffness[5] == 20.f &&
+                  official_contract.joint_damping[4] == 2.f &&
+                  official_contract.joint_damping[5] == 1.f,
+                  "official actor ankle PD metadata");
+            std::ifstream official_stream(argv[3], std::ios::binary);
+            check(static_cast<bool>(official_stream), "cannot read official model");
+            const std::vector<char> official_bytes((std::istreambuf_iterator<char>(official_stream)), {});
+            for (const auto &entry : std::vector<std::array<std::string, 3>>{
+                     {"\"embedded_in_onnx\": true", "\"embedded_in_onnx\": null", "embedded_in_onnx"},
+                     {"\"updates_at_inference\": false", "\"updates_at_inference\": true ", "updates_at_inference"},
+                     {"running_std + 0.01", "running_std + 0.02", "formula"},
+                     {"caller omega*0.5 and qd*0.2", "caller omega*1.0 and qd*1.0", "khan_sensor_input"}})
+            {
+                const auto invalid = replace_once(official_bytes, entry[0], entry[1]);
+                Ort::Session broken(env, invalid.data(), invalid.size(), options);
+                rejects([&] { RLController::SuperMimicDeployment bad(broken, names); },
+                        "schema.normalization." + entry[2]);
+            }
+            const auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+            std::array<float, 620> observation{};
+            const std::array<int64_t, 2> shape{1, 620};
+            auto input = Ort::Value::CreateTensor<float>(memory, observation.data(), observation.size(),
+                                                        shape.data(), shape.size());
+            const char *input_name = "obs", *output_name = "actions";
+            auto output = official.Run(Ort::RunOptions{nullptr}, &input_name, &input, 1, &output_name, 1);
+            check(output[0].GetTensorTypeAndShapeInfo().GetElementCount() == 27,
+                  "official graph output size");
+            const float *actions = output[0].GetTensorData<float>();
+            check(std::all_of(actions, actions + 27, [](float value) { return std::isfinite(value); }),
+                  "official embedded normalizer produces finite actions");
+        }
         std::cout << "SuperMimic deployment metadata, mappings and rejection checks passed\n";
         return 0;
     }

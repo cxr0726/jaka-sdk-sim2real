@@ -148,7 +148,26 @@ namespace RLController
             require(schema, "angular_velocity_frame", "base_link body frame, radians/second", "schema");
             require(schema, "orientation", "R_base(t)^T @ R_ref(t+k)", "schema");
             require(schema, "sensor_scale_location", "caller, once; network scale buffers remain identity", "schema");
-            require(schema, "running_normalization", false, "schema");
+            const auto running_normalization = schema.find("running_normalization");
+            if (running_normalization == schema.end() || !running_normalization->is_boolean())
+                fail("schema.running_normalization must be a boolean");
+            if (running_normalization->get<bool>())
+            {
+                // Official actors keep their frozen running statistics and the
+                // inverse of the legacy caller sensor scales inside ONNX. The
+                // caller still supplies omega*0.5 and qd*0.2 exactly once; do
+                // not normalize, unscale or update statistics in this process.
+                const auto normalization = schema.find("normalization");
+                if (normalization == schema.end() || !normalization->is_object())
+                    fail("schema.normalization must declare embedded frozen normalization");
+                require(*normalization, "embedded_in_onnx", true, "schema.normalization");
+                require(*normalization, "updates_at_inference", false, "schema.normalization");
+                require(*normalization, "formula", "(raw_feature - running_mean) / (running_std + 0.01)", "schema.normalization");
+                require(*normalization, "khan_sensor_input", "caller omega*0.5 and qd*0.2 are inverted inside the graph before normalization", "schema.normalization");
+                require(*normalization, "sensor_history_statistics", "one shared statistic per raw sensor feature across history lags", "schema.normalization");
+                require(*normalization, "future_orientation_statistics", "independent flattened 30-dimensional window", "schema.normalization");
+                require(*normalization, "goal_statistics", "independent per flattened goal dimension and future offset", "schema.normalization");
+            }
             require(schema, "observation_noise", false, "schema");
             require(schema, "actor_stateful", false, "schema");
             require(schema, "reference_motion_embedded", false, "schema");
