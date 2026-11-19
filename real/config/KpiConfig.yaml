@@ -139,6 +139,10 @@ jakaminimimic_zmq_fixwrist:
 # Global defaults and gains stay in SDK deployment order. The 27-axis kp/kd
 # remain converted hardware MIT gains; dedicated PR gains are configured above.
 jakaminimimic_superzmq:
+  # Select vla_pose_v1 for the JAKA OpenHLM 30 Hz binary pose publisher.
+  motion_backend: legacy_arrival
+  vla_source_hz: 30
+  vla_stale_timeout_s: 1.0
   # Residual reference skip is embedded in this ONNX. Keep q0 + scale * output
   # in C++; do not add q_ref again. History stores the full ONNX output.
   policy_path: "policy_mimic/ckpt_0160000_bones_residual.onnx"
@@ -167,5 +171,4 @@ jakaminimimic_superzmq:
   future_steps: [0, 1, 2, 3, 4]
   default_root_pos: [0.0, 0.0, 0.65]
   default_root_quat: [1.0, 0.0, 0.0, 0.0]
-  # Use the original real RealtimeMotionBuffer: receiver system_clock insertion
-  # and queries, no source-clock warmup or extra reference-height offset.
+  # legacy_arrival uses receive times. vla_pose_v1 uses a warmed-up frame-index timeline.

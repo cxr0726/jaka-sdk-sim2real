@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.8)
 project(kpi_deploy_real)
 
 set(CMAKE_CXX_STANDARD 17)
+set(KPI_VLA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../common/vla")
+set(KPI_VLA_SOURCES "${KPI_VLA_DIR}/RealtimeMotionBufferVla.cpp" "${KPI_VLA_DIR}/VlaPosePacket.cpp")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -46,7 +48,7 @@ file(GLOB KPI_COMMON_SOURCES src/*.cpp)
 
 if(KPI_BUILD_REAL)
   add_executable(KpiDeployReal
-    ${KPI_COMMON_SOURCES}
+    ${KPI_COMMON_SOURCES} ${KPI_VLA_SOURCES}
   )
 
   ament_target_dependencies(KpiDeployReal
@@ -56,6 +58,7 @@ if(KPI_BUILD_REAL)
   )
 
   target_include_directories(KpiDeployReal PRIVATE
+    "${KPI_VLA_DIR}"
     include
     ${_kpi_lwc_include}/legged_waist_controller
     ${_kpi_lwc_include}/rt_thread
@@ -124,8 +127,8 @@ if(BUILD_TESTING)
   add_executable(RealSuperMimicPolicyTest tests/test_supermimic_policy.cpp
     src/GlobalVars.cpp src/Util.cpp src/ParKine.cpp src/FSM.cpp
     src/SuperMimicDeployment.cpp src/SuperMimicSafety.cpp
-    src/RealtimeMotionBuffer.cpp src/StatePublisher.cpp)
-  target_include_directories(RealSuperMimicPolicyTest PRIVATE include
+    src/RealtimeMotionBuffer.cpp src/StatePublisher.cpp ${KPI_VLA_SOURCES})
+  target_include_directories(RealSuperMimicPolicyTest PRIVATE include "${KPI_VLA_DIR}"
     ${_kpi_lwc_include}/legged_waist_controller ${_kpi_lwc_include}/rt_thread
     ext_libs/onnxruntime-linux-x64-1.24.4/include ext_libs/zmq/include ext_libs)
   ament_target_dependencies(RealSuperMimicPolicyTest rclcpp sensor_msgs trajectory_msgs)

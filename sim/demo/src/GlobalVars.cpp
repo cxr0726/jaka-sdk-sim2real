@@ -156,6 +156,8 @@ namespace RLController
     bool mJakaMiniSuperZmqEnabled = false;
     std::string mJakaMiniSuperZmqConnect = "tcp://10.5.5.120:28701";
     int mJakaMiniSuperZmqHwm = 1;
+    std::string mJakaMiniSuperMotionBackend = "legacy_arrival";
+    int64_t mJakaMiniSuperVlaStaleNs = 1'000'000'000;
     double mJakaMiniSuperZmqDt = 0.02;
     double mJakaMiniSuperZmqTolerance = 0.04;
     std::vector<int> mJakaMiniSuperZmqFutureSteps;
@@ -574,6 +576,18 @@ namespace RLController
         if (mYamlNode["jakaminimimic_superzmq"])
         {
             const YAML::Node cfg = mYamlNode["jakaminimimic_superzmq"];
+            mJakaMiniSuperMotionBackend = cfg["motion_backend"].as<std::string>("legacy_arrival");
+            if (mJakaMiniSuperMotionBackend != "legacy_arrival" && mJakaMiniSuperMotionBackend != "vla_pose_v1")
+                throw std::runtime_error("Unknown SuperMimic motion_backend: " + mJakaMiniSuperMotionBackend);
+            if (mJakaMiniSuperMotionBackend == "vla_pose_v1")
+            {
+                if (cfg["vla_source_hz"].as<double>(30) != 30)
+                    throw std::runtime_error("vla_pose_v1 expects a 30 Hz publisher");
+                const double ns = cfg["vla_stale_timeout_s"].as<double>(1.0) * 1.e9;
+                if (!std::isfinite(ns) || ns < 1 || ns >= static_cast<double>(INT64_MAX))
+                    throw std::runtime_error("Invalid SuperMimic vla_stale_timeout_s");
+                mJakaMiniSuperVlaStaleNs = static_cast<int64_t>(ns);
+            }
             mJakaMiniSuperZmqConnect = cfg["zmq_connect"]
                 ? cfg["zmq_connect"].as<std::string>() : mJakaMiniSuperZmqConnect;
             mJakaMiniSuperZmqHwm = cfg["zmq_hwm"] ? cfg["zmq_hwm"].as<int>() : 1;
@@ -582,6 +596,10 @@ namespace RLController
             mJakaMiniSuperZmqFutureSteps = cfg["future_steps"]
                 ? cfg["future_steps"].as<std::vector<int>>() : std::vector<int>{0, 1, 2, 3, 4};
             validate_motion_sampling(mJakaMiniSuperZmqDt, mJakaMiniSuperZmqTolerance, mJakaMiniSuperZmqFutureSteps);
+            if (mJakaMiniSuperMotionBackend == "vla_pose_v1" &&
+                (mJakaMiniSuperZmqHwm < 1 || load_reference_body_index(cfg) != 0 ||
+                 !std::isfinite(mTimeStep) || std::abs(mTimeStep - .02) > 1.e-9))
+                throw std::runtime_error("vla_pose_v1 requires a positive HWM, base_link index 0 and a 50 Hz tracker");
             if (std::abs(mJakaMiniSuperZmqDt - 0.02) > 1.e-9)
                 throw std::runtime_error("SuperMimic requires dt_s=0.02");
             if (mJakaMiniSuperZmqFutureSteps != std::vector<int>{0, 1, 2, 3, 4})

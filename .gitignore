@@ -3,6 +3,10 @@
 !/.gitignore
 !/sim/
 !/real/
+# Receiver sources and offline tests shared by the real and simulated trackers.
+!/common/
+/common/*
+!/common/vla/
 # !/level-0/
 # !/ref_thirdparty/
 # Keep local Git metadata, environments, caches and build outputs out of snapshots.

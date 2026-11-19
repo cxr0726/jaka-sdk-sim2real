@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(kpi_mujoco_sim_sdk_demo LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(KPI_VLA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../common/vla")
+set(KPI_VLA_SOURCES "${KPI_VLA_DIR}/RealtimeMotionBufferVla.cpp" "${KPI_VLA_DIR}/VlaPosePacket.cpp")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -63,6 +65,7 @@ foreach(_required_path
 endforeach()
 
 set(KPI_DEMO_SOURCES
+  ${KPI_VLA_SOURCES}
   "${CMAKE_CURRENT_SOURCE_DIR}/src/KpiSimMain.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/FSM.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/FSMInit.cpp"
@@ -95,6 +98,7 @@ ament_target_dependencies(KpiMujocoSimDemo
 )
 
 target_include_directories(KpiMujocoSimDemo PRIVATE
+  "${KPI_VLA_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
   "${_sdk_include}"
   "${_sdk_kpi_include}"
@@ -201,6 +205,17 @@ if(BUILD_TESTING)
   add_test(NAME contact_model COMMAND ContactModelTest
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_sym.xml"
     "${KPI_MUJOCO_SIM_SDK_ROOT}/assets/khan_mini/Khan_mini_contact.xml")
+
+  add_executable(VlaPosePacketTest "${KPI_VLA_DIR}/test_vla_pose_packet.cpp" "${KPI_VLA_DIR}/VlaPosePacket.cpp")
+  target_include_directories(VlaPosePacketTest PRIVATE "${KPI_VLA_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs")
+  add_test(NAME supermimic_vla_pose_packet COMMAND VlaPosePacketTest)
+
+  add_executable(VlaMotionBufferTest "${KPI_VLA_DIR}/test_vla_motion_buffer.cpp" ${KPI_VLA_SOURCES})
+  target_include_directories(VlaMotionBufferTest PRIVATE "${KPI_VLA_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs" "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs/zmq/include")
+  target_link_libraries(VlaMotionBufferTest Eigen3::Eigen Threads::Threads
+    "${CMAKE_CURRENT_SOURCE_DIR}/ext_libs/zmq/lib/libzmq.so")
+  add_test(NAME supermimic_vla_motion_window COMMAND VlaMotionBufferTest)
 
   add_executable(LegacyRealtimeMotionBufferTest
     tests/test_legacy_realtime_motion_buffer.cpp src/LegacyRealtimeMotionBuffer.cpp)

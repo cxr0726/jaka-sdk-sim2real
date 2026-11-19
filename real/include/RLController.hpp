@@ -143,6 +143,8 @@ namespace RLController
     extern bool mJakaMiniSuperZmqEnabled;
     extern std::string mJakaMiniSuperZmqConnect;
     extern int mJakaMiniSuperZmqHwm;
+    extern std::string mJakaMiniSuperMotionBackend;
+    extern int64_t mJakaMiniSuperVlaStaleNs;
     extern double mJakaMiniSuperZmqDt;
     extern double mJakaMiniSuperZmqTolerance;
     extern std::vector<int> mJakaMiniSuperZmqFutureSteps;

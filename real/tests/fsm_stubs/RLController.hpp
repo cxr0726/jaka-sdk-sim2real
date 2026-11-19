@@ -97,6 +97,8 @@ namespace RLController
     extern std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
     extern std::string mJakaMiniSuperZmqConnect,mStateZmqBind;
     extern int mJakaMiniSuperZmqHwm;
+    extern std::string mJakaMiniSuperMotionBackend;
+    extern int64_t mJakaMiniSuperVlaStaleNs;
     extern double mJakaMiniSuperZmqDt,mJakaMiniSuperZmqTolerance;
     extern std::vector<int> mJakaMiniSuperZmqFutureSteps;
     extern Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos;

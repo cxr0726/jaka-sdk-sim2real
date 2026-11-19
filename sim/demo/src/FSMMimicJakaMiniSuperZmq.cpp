@@ -3,7 +3,9 @@
 // semantics are read from this model's embedded deployment metadata.
 #include "RLController.hpp"
 #include "StatePublisher.hpp"
+#include <optional>
 #include "LegacyRealtimeMotionBuffer.hpp"
+#include "RealtimeMotionBufferVla.hpp"
 
 #include <algorithm>
 #include <array>
@@ -65,6 +67,7 @@ namespace RLController
     static bool zmq_play;
     static bool zmq_first_step;
     static bool zmq_last_ready;
+    static bool zmq_stream_hold;
     static int zmq_frame_stack;
     static Eigen::Quaternionf zmq_align_quat(1.0f, 0.0f, 0.0f, 0.0f);
     static std::vector<float> zmq_single_obs;
@@ -84,6 +87,7 @@ namespace RLController
     static double zmq_timing_total_max = 0.0;
 
     static std::unique_ptr<LegacyRealtimeMotionBuffer> zmq_motion_buffer;
+    static std::unique_ptr<RealtimeMotionBufferVla> zmq_vla_buffer;
 
     // OpenHLM 风格 state 发布器(50Hz tick 内联、非阻塞; 部署序→JAKA 序重排)
     static std::unique_ptr<StatePublisher> zmq_state_pub;
@@ -381,7 +385,7 @@ namespace RLController
 
     static void zmq_write_policy_diagnostic(
         const std::array<InterpolatedFrame, LegacyRealtimeMotionBuffer::kFutureSteps> &sampled_frames,
-        bool reset_history, bool buffer_ready = false, bool reset_alignment = false)
+        bool reset_history, bool buffer_ready, bool reset_alignment, const VlaMotionWindow *vla)
     {
         if (!zmq_policy_diagnostic.is_open()) return;
         nlohmann::json frames = nlohmann::json::array();
@@ -389,15 +393,15 @@ namespace RLController
             frames.push_back({{"root_pos", {frame.root_pos_w.x(), frame.root_pos_w.y(), frame.root_pos_w.z()}},
                               {"root_quat", {frame.root_quat_w.w(), frame.root_quat_w.x(), frame.root_quat_w.y(), frame.root_quat_w.z()}},
                               {"joint_pos_buffer", std::vector<float>(frame.dof_pos.data(), frame.dof_pos.data() + frame.dof_pos.size())}});
-        const nlohmann::json record = {
+        nlohmann::json record = {
             {"step", zmq_timing_step_count},
-            {"buffer_backend", "legacy_arrival"}, {"reference_ready", buffer_ready},
+            {"buffer_backend", mJakaMiniSuperMotionBackend}, {"reference_ready", buffer_ready},
             {"query_steady_ns", std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count()},
             {"query_time_scope", "diagnostic_write_not_buffer_query"},
             // Compatibility fields for existing offline policy-tape readers.
             // The legacy buffer has no stream generations or stale status.
-            {"generation", buffer_ready ? 1 : 0}, {"status", buffer_ready ? "tracking" : "buffering"},
+            {"generation", buffer_ready ? 1 : 0}, {"status", zmq_stream_hold ? "stream_hold" : (buffer_ready ? "tracking" : "buffering")},
             {"reset_history", reset_history}, {"reset_alignment", reset_history || reset_alignment}, {"frames", frames},
             {"robot_quat", {zmq_quat[0], zmq_quat[1], zmq_quat[2], zmq_quat[3]}},
             {"omega", {zmq_omega[0], zmq_omega[1], zmq_omega[2]}},
@@ -407,6 +411,12 @@ namespace RLController
             {"obs", zmq_stacked_obs}, {"actions", zmq_last_action},
             {"clip_target_positions", mJakaMiniSuperZmqClipTargetPositions},
             {"targets_raw_deploy", zmq_raw_targets}, {"targets_deploy", mPt.positions}};
+        if (vla)
+        {
+            record["latest_frame_index"] = vla->last_frame_index;
+            record["valid_receive_age_ns"] = vla->receive_age_ns;
+            if (vla->fault_reason) record["stream_hold_reason"] = vla->fault_reason;
+        }
         zmq_policy_diagnostic << record.dump() << '\n';
     }
 
@@ -439,6 +449,7 @@ namespace RLController
 
     static void fsm_mimic_jaka_mini_superzmq_run()
     {
+        if (mErrCode != ERR_NONE) return;
         const auto t_step_start = std::chrono::steady_clock::now();
 
         if (!zmq_fetch_robot_state())
@@ -461,8 +472,35 @@ namespace RLController
         }
 
         const auto t_obs_start = std::chrono::steady_clock::now();
-        const bool buffer_ready = zmq_motion_buffer->ready();
-        const auto frames = zmq_motion_buffer->get_obs();
+        bool buffer_ready = false;
+        std::optional<VlaMotionWindow> vla_window;
+        std::array<InterpolatedFrame, kJakaMiniSuperZMQFutureSteps> frames;
+        try
+        {
+            if (zmq_vla_buffer)
+            {
+                auto &window = vla_window.emplace(zmq_vla_buffer->sample());
+                if (window.fault && !zmq_stream_hold)
+                {
+                    std::cerr << "[SuperMimic] Holding the VLA reference: " << window.fault_reason
+                              << ". Exit and re-enter the FSM to accept a new stream.\n";
+                    zmq_stream_hold = true;
+                }
+                buffer_ready = window.ready;
+                frames = std::move(window.frames);
+            }
+            else
+            {
+                buffer_ready = zmq_motion_buffer->ready();
+                frames = zmq_motion_buffer->get_obs();
+            }
+        }
+        catch (const std::exception &error)
+        {
+            std::cerr << "[SuperMimic] motion sample: " << error.what() << '\n';
+            mErrCode = ERR_JOINT;
+            return;
+        }
         const bool reset_history = zmq_first_step;
         const bool reset_alignment = zmq_first_step || (!zmq_last_ready && buffer_ready);
         if (zmq_first_step)
@@ -504,7 +542,8 @@ namespace RLController
             return;
         }
         mRobot->set_joint_trajectory(mJointNames, mPt);
-        zmq_write_policy_diagnostic(frames, reset_history, buffer_ready, reset_alignment);
+        zmq_write_policy_diagnostic(frames, reset_history, buffer_ready, reset_alignment,
+                                    vla_window ? &*vla_window : nullptr);
         const auto t_action_end = std::chrono::steady_clock::now();
 
         // Calculate timings in milliseconds
@@ -573,6 +612,7 @@ namespace RLController
         zmq_play = false;
         zmq_first_step = true;
         zmq_last_ready = false;
+        zmq_stream_hold = false;
         zmq_policy_diagnostic.close();
         zmq_policy_diagnostic.clear();
         if (const char *path = std::getenv("JAKA_SUPER_POLICY_DIAG_JSONL"); path && *path)
@@ -602,17 +642,38 @@ namespace RLController
             return;
         }
 
-        zmq_motion_buffer = std::make_unique<LegacyRealtimeMotionBuffer>(
-            mJointNames,
-            mJakaMiniSuperZmqConnect,
-            mJakaMiniSuperZmqHwm,
-            static_cast<int64_t>(mJakaMiniSuperZmqDt * 1e9),
-            static_cast<int64_t>(mJakaMiniSuperZmqTolerance * 1e9),
-            mJakaMiniSuperZmqFutureSteps,
-            mJakaMiniSuperZmqDefaultJointPos.size() > 0 ? mJakaMiniSuperZmqDefaultJointPos
-                                                   : Eigen::VectorXf::Zero(mNumAction),
-            mJakaMiniSuperZmqDefaultRootPos,
-            mJakaMiniSuperZmqDefaultRootQuat);
+        try
+        {
+            if (mJakaMiniSuperMotionBackend == "vla_pose_v1")
+            {
+                zmq_vla_buffer = std::make_unique<RealtimeMotionBufferVla>(
+                    mJakaMiniSuperZmqConnect, mJakaMiniSuperZmqHwm,
+                    static_cast<int64_t>(mJakaMiniSuperZmqDt * 1e9),
+                    static_cast<int64_t>(mJakaMiniSuperZmqTolerance * 1e9),
+                    mJakaMiniSuperZmqDefaultJointPos, mJakaMiniSuperZmqDefaultRootPos,
+                    mJakaMiniSuperZmqDefaultRootQuat, mJakaMiniSuperVlaStaleNs);
+            }
+            else
+            {
+                zmq_motion_buffer = std::make_unique<LegacyRealtimeMotionBuffer>(
+                    mJointNames,
+                    mJakaMiniSuperZmqConnect,
+                    mJakaMiniSuperZmqHwm,
+                    static_cast<int64_t>(mJakaMiniSuperZmqDt * 1e9),
+                    static_cast<int64_t>(mJakaMiniSuperZmqTolerance * 1e9),
+                    mJakaMiniSuperZmqFutureSteps,
+                    mJakaMiniSuperZmqDefaultJointPos.size() > 0 ? mJakaMiniSuperZmqDefaultJointPos
+                                                           : Eigen::VectorXf::Zero(mNumAction),
+                    mJakaMiniSuperZmqDefaultRootPos,
+                    mJakaMiniSuperZmqDefaultRootQuat);
+            }
+        }
+        catch (const std::exception &error)
+        {
+            std::cerr << "[SuperMimic] motion receiver initialization: " << error.what() << '\n';
+            mErrCode = ERR_INIT;
+            return;
+        }
 
         // OpenHLM 风格 state 发布器(绑定 :28711; 失败仅告警, 不影响控制)
         zmq_state_pub = std::make_unique<StatePublisher>(mStateZmqBind);
@@ -630,6 +691,7 @@ namespace RLController
     static void from_fsm_mimic_jaka_mini_superzmq()
     {
         zmq_motion_buffer.reset();
+        zmq_vla_buffer.reset();
         zmq_state_pub.reset();
         zmq_policy_diagnostic.close();
         switch (ReqState)

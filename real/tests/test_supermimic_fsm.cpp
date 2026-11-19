@@ -50,6 +50,8 @@ namespace RLController
     std::unique_ptr<SuperMimicDeployment> mJakaMiniSuperDeployment;
     std::string mJakaMiniSuperZmqConnect,mStateZmqBind;
     int mJakaMiniSuperZmqHwm=1;
+    std::string mJakaMiniSuperMotionBackend = "legacy_arrival";
+    int64_t mJakaMiniSuperVlaStaleNs = 1'000'000'000;
     double mJakaMiniSuperZmqDt=.02,mJakaMiniSuperZmqTolerance=.04;
     std::vector<int> mJakaMiniSuperZmqFutureSteps={0,1,2,3,4};
     Eigen::VectorXf mJakaMiniSuperZmqDefaultJointPos=Eigen::VectorXf::Zero(27);
@@ -99,7 +101,10 @@ namespace
 
     void fixture()
     {
-        zmq_motion_buffer.reset();zmq_state_pub.reset();zmq_policy_diagnostic.close();
+        zmq_motion_buffer.reset();zmq_vla_buffer.reset();zmq_state_pub.reset();zmq_policy_diagnostic.close();
+        mJakaMiniSuperMotionBackend = "legacy_arrival";
+        RealtimeMotionBufferVla::next = {};
+        RealtimeMotionBufferVla::sample_calls = 0;
         mRobot=std::make_unique<Robot>();mErrCode=ERR_NONE;
         mDataReadyFlag=true;mEnabledJointCount=27;mFaultJointCount=0;mAngleMapFlag=0;
         mJakaMiniSuperZmqEnabled=mJakaMiniZmqEnabled=mJakaMiniZmqFixwristEnabled=true;
@@ -119,7 +124,7 @@ namespace
         RealtimeMotionBuffer::ready_calls=RealtimeMotionBuffer::query_calls=0;
         RealtimeMotionBuffer::next={};
         legacy_ankle_test::calls.clear();legacy_ankle_test::fail_call=-1;
-        StatePublisher::fail_construct=false;StatePublisher::calls=0;
+        StatePublisher::fail_construct=false;StatePublisher::bind_ok=true;StatePublisher::calls=0;
         FSMIdleEnter(FSM_INIT);
     }
 
@@ -298,6 +303,69 @@ namespace
         }
     }
 
+    void vla_reference_checks()
+    {
+        fixture();
+        mJakaMiniSuperMotionBackend = "vla_pose_v1";
+        enter();
+        require(zmq_vla_buffer && !zmq_motion_buffer, "wrong VLA buffer selected");
+        fsm_mimic_jaka_mini_superzmq_run();
+        require(!zmq_last_ready && mRobot->trajectory_accepted == 1, "VLA initial standing reference failed");
+        require(StatePublisher::calls == 1 && zmq_state_pub && zmq_state_pub->ok(),
+                "VLA waiting for its first pose did not publish measured state");
+        auto &window = RealtimeMotionBufferVla::next;
+        window.ready = true;
+        for (auto &frame : window.frames)
+        {
+            frame.root_pos_w.z() = .71f;
+            frame.root_quat_w = Eigen::Quaternionf(Eigen::AngleAxisf(.6f, Eigen::Vector3f::UnitZ()));
+        }
+        fsm_mimic_jaka_mini_superzmq_run();
+        require(zmq_last_ready && std::abs(input[15]-.71f) < 1.e-6f, "VLA snapshot did not reach actor");
+        require(std::abs(zmq_align_quat.z()+std::sin(.3f)) < 1.e-6f, "VLA first-ready yaw alignment failed");
+        window.fault = true;
+        fsm_mimic_jaka_mini_superzmq_run();
+        require(mErrCode == ERR_NONE && mRobot->pd_off == 0 && mRobot->enable_off == 0,
+                "reference outage unexpectedly removed PD or servo power");
+        require(zmq_stream_hold && zmq_last_ready && actor.calls == 3 && mRobot->trajectory_accepted == 3,
+                "VLA hold did not continue balance with the accepted reference");
+        require(std::abs(input[15]-.71f) < 1.e-6f, "VLA hold reverted to an unrelated pose");
+        require(RealtimeMotionBufferVla::sample_calls == 3 && !RealtimeMotionBuffer::query_calls,
+                "VLA mode did not consume exactly one coherent snapshot per tick");
+        chord(false,false); fsm_mimic_jaka_mini_superzmq_judge();
+        chord(true,true); fsm_mimic_jaka_mini_superzmq_judge();
+        require(!zmq_vla_buffer && !zmq_state_pub && mFSMState == FSM_IDLE,
+                "manual exit did not release the VLA receiver and state publisher");
+        fixture();
+        mJakaMiniSuperMotionBackend = "vla_pose_v1";
+        StatePublisher::bind_ok = false;
+        chord(false,false); fsm_idle_judge();
+        chord(true,true); fsm_idle_judge();
+        require(mFSMState == FSM_IDLE && ReqState == FSM_IDLE && mErrCode == ERR_NONE &&
+                !zmq_vla_buffer && !zmq_state_pub && actor.calls == 0,
+                "unavailable state endpoint armed the VLA tracker or disrupted IDLE");
+        StatePublisher::bind_ok = true;
+        enter();
+        for (int d=0;d<27;++d) mRobot->joints[d].pos_fdb = .002*d;
+        mRobot->imu.qw = std::cos(.25); mRobot->imu.qz = std::sin(.25);
+        fsm_mimic_jaka_mini_superzmq_run();
+        const int sdk_by_jaka[27] = {0,1,2,3,4,5,12,13,14,15,16,17,24,6,7,8,9,10,11,18,19,20,21,22,23,25,26};
+        for (int wire=0;wire<27;++wire)
+            require(StatePublisher::last_joints[wire] == zmq_q[sdk_by_jaka[wire]],
+                    "measured feedback lost the controller-to-JAKA ordering");
+        require(StatePublisher::last_quat == std::array<double,4>{mRobot->imu.qw,0,0,mRobot->imu.qz},
+                "measured base orientation lost wxyz order");
+
+        fixture();
+        mJakaMiniSuperMotionBackend = "vla_pose_v1";
+        enter();
+        mRobot->imu_ok = false;
+        fsm_mimic_jaka_mini_superzmq_run();
+        require(mErrCode != ERR_NONE && mRobot->pd_off > 0 && mRobot->enable_off > 0 &&
+                mRobot->trajectory_attempts == 0, "VLA mode masked an actual IMU fault");
+        ++cases;
+    }
+
     void reference_reset_checks()
     {
         fixture();enter();actor.action.fill(.1f);fsm_mimic_jaka_mini_superzmq_run();
@@ -349,7 +417,7 @@ int main()
 {
     try
     {
-        transition_checks();fault_checks();legacy_ankle_checks();reference_reset_checks();
+        transition_checks();fault_checks();legacy_ankle_checks();reference_reset_checks();vla_reference_checks();
         zmq_motion_buffer.reset();zmq_state_pub.reset();mRobot.reset();
         std::cout<<"Actual IDLE/SuperMimic FSM transition, fault and legacy ankle/buffer cases passed: "<<cases<<"; fake I/O only\n";
         return 0;
